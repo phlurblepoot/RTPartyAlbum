@@ -11,10 +11,10 @@ const uploadStateSchema = z.object({ enabled: z.boolean() });
 
 const motionConfigSchema = z.object({
   motionWeights: z.object({
-    drift: z.number(),
-    current: z.number(),
-    orbit: z.number(),
-    mosaic: z.number(),
+    drift: z.number().nonnegative(),
+    current: z.number().nonnegative(),
+    orbit: z.number().nonnegative(),
+    mosaic: z.number().nonnegative(),
   }),
   speed: z.number().min(0.25).max(3),
   maxOnCanvas: z.number().int().positive(),
@@ -24,19 +24,19 @@ const motionConfigSchema = z.object({
     varianceMs: z.number().int().nonnegative(),
   }),
   enterWeights: z.object({
-    flyInEdge: z.number(),
-    scalePop: z.number(),
-    fadeGrow: z.number(),
-    spinIn: z.number(),
-    dropBounce: z.number(),
+    flyInEdge: z.number().nonnegative(),
+    scalePop: z.number().nonnegative(),
+    fadeGrow: z.number().nonnegative(),
+    spinIn: z.number().nonnegative(),
+    dropBounce: z.number().nonnegative(),
   }),
   leaveWeights: z.object({
-    driftOffEdge: z.number(),
-    shrinkFade: z.number(),
-    spinOut: z.number(),
-    slideAway: z.number(),
+    driftOffEdge: z.number().nonnegative(),
+    shrinkFade: z.number().nonnegative(),
+    spinOut: z.number().nonnegative(),
+    slideAway: z.number().nonnegative(),
   }),
-  baseSize: z.number().positive(),
+  baseSize: z.number().positive().max(800),
   sizeVariance: z.number().min(0).max(1),
 });
 

@@ -57,6 +57,19 @@ describe('motion + theme update broadcasts', () => {
     expect(realtime.emitSettingsUpdated).not.toHaveBeenCalled();
   });
 
+  it('PUT motion rejects negative weight → 400, no broadcast', async () => {
+    const { app, realtime } = ctx();
+    const agent = await authed(app);
+    const e = (await agent.post('/api/admin/events').send({ name: 'E' })).body;
+    const badCfg = {
+      ...DEFAULT_MOTION_CONFIG,
+      motionWeights: { ...DEFAULT_MOTION_CONFIG.motionWeights, drift: -1 },
+    };
+    const res = await agent.put(`/api/admin/events/${e.id}/motion`).send({ motionConfig: badCfg });
+    expect(res.status).toBe(400);
+    expect(realtime.emitSettingsUpdated).not.toHaveBeenCalled();
+  });
+
   it('PUT motion on missing event → 404', async () => {
     const { app } = ctx();
     const agent = await authed(app);
