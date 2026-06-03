@@ -16,22 +16,44 @@ vi.mock('./api/client', async () => {
   };
 });
 
+// Admin API stays pending so AuthProvider remains in 'loading' state.
+// RequireAdmin renders <p>Loading…</p> while status === 'loading'.
+vi.mock('./admin/api', () => ({
+  adminApi: {
+    me: vi.fn(() => new Promise(() => {})),
+    login: vi.fn(),
+    logout: vi.fn(),
+  },
+  ApiError: class ApiError extends Error {
+    status: number;
+    code: string;
+    constructor(status: number, code: string, message: string) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  },
+}));
+
 import UploadPage from './pages/UploadPage';
 import DisplayPage from './pages/DisplayPage';
-import AdminApp from './admin/AdminApp';
+import { AdminRoutes } from './admin/AdminRoutes';
 
 const routes = [
   { path: '/e/:code', element: <UploadPage /> },
   { path: '/e/:code/display', element: <DisplayPage /> },
-  { path: '/admin/*', element: <AdminApp /> },
+  { path: '/admin/*', element: <AdminRoutes /> },
 ];
 
 function renderRouter(initialEntries: string[]) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const router = createMemoryRouter(routes, { initialEntries });
+  const router = createMemoryRouter(routes, {
+    initialEntries,
+    future: { v7_relativeSplatPath: true },
+  });
   return render(
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <RouterProvider router={router} future={{ v7_startTransition: true }} />
     </QueryClientProvider>,
   );
 }
@@ -47,8 +69,9 @@ describe('router', () => {
     expect(screen.getByTestId('display-placeholder')).toBeInTheDocument();
   });
 
-  it('renders the Admin placeholder for /admin', () => {
+  it('renders the Admin loading state for /admin (auth check pending)', () => {
     renderRouter(['/admin']);
-    expect(screen.getByTestId('admin-placeholder')).toBeInTheDocument();
+    // RequireAdmin renders <p>Loading…</p> while AuthProvider checks /api/admin/me
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 });

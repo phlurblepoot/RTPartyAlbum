@@ -20,7 +20,12 @@ export function renderWithProviders(ui: ReactElement, opts: Opts = {}) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+        <MemoryRouter
+          initialEntries={[route]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          {children}
+        </MemoryRouter>
       </QueryClientProvider>
     );
   }
