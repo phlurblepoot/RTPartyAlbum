@@ -7,6 +7,8 @@ import type { EventDetail, PhotoAdmin, Photo } from '@rtpa/shared';
 function mergePhotoFromSocket(prev: PhotoAdmin[], p: Photo): PhotoAdmin[] {
   const existing = prev.find((x) => x.id === p.id);
   if (existing) {
+    // The server re-broadcasts photo:added on UNHIDE, so a re-broadcast of an
+    // already-known photo means un-hide it (isHidden:false).
     return prev.map((x) => (x.id === p.id ? { ...x, ...p, isHidden: false } : x));
   }
   const admin: PhotoAdmin = { ...p, deviceId: '', userAgent: '', ipAddress: '' };
@@ -17,6 +19,10 @@ export function AlbumTab({ event }: { event: EventDetail }) {
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'event', event.id, 'photos'],
     queryFn: () => adminApi.listPhotos(event.id),
+    // Socket is the source of truth for live updates; never background-refetch and
+    // re-seed local state (it would clobber socket-driven mutations).
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
   });
 
   const [photos, setPhotos] = useState<PhotoAdmin[]>([]);
@@ -129,12 +135,14 @@ export function AlbumTab({ event }: { event: EventDetail }) {
               {p.isHidden && <span className="hidden-badge">Hidden</span>}
               <button
                 type="button"
+                aria-label={`Photo info for ${p.uploaderName}`}
+                aria-expanded={openInfo === p.id}
                 onClick={() => setOpenInfo(openInfo === p.id ? null : p.id)}
               >
                 Info
               </button>
               {openInfo === p.id && (
-                <div className="popover" role="dialog">
+                <div className="popover" role="group" aria-label={`Photo info for ${p.uploaderName}`}>
                   <p>device: {p.deviceId}</p>
                   <p>ua: {p.userAgent}</p>
                   <p>ip: {p.ipAddress}</p>

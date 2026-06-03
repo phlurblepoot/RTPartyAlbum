@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AlbumTab } from '../event/AlbumTab';
 import { renderWithProviders } from './helpers/renderWithProviders';
@@ -65,7 +65,9 @@ describe('AlbumTab', () => {
       durationMs: null, createdAt: '2026-06-01T12:30:00.000Z', isHidden: false,
       displayUrl: '/media/display/p3.jpg', thumbUrl: '/media/thumb/p3.jpg',
     };
-    fakeSocket.emitServer('photo:added', incoming);
+    act(() => {
+      fakeSocket.emitServer('photo:added', incoming);
+    });
     await screen.findByText('Cara');
     const tiles = screen.getAllByTestId('photo-tile');
     expect(tiles[0]).toHaveAttribute('data-photo-id', 'p3');
@@ -82,8 +84,24 @@ describe('AlbumTab', () => {
   it('photo:deleted removes tile', async () => {
     renderWithProviders(<AlbumTab event={event} />);
     await screen.findByText('Bob');
-    fakeSocket.emitServer('photo:deleted', { id: 'p1' });
+    act(() => {
+      fakeSocket.emitServer('photo:deleted', { id: 'p1' });
+    });
     await waitFor(() => expect(screen.queryByText('Alice')).not.toBeInTheDocument());
+  });
+
+  it('photo:hidden marks tile hidden', async () => {
+    renderWithProviders(<AlbumTab event={event} />);
+    await screen.findByText('Bob');
+    act(() => {
+      fakeSocket.emitServer('photo:hidden', { id: 'p2' });
+    });
+    // default filter hides it from the visible grid
+    await waitFor(() => expect(screen.queryByTestId('photo-tile-p2')).not.toBeInTheDocument());
+    // with show-hidden on it reappears, marked hidden
+    await userEvent.click(screen.getByRole('checkbox', { name: /show hidden/i }));
+    const tile = await screen.findByTestId('photo-tile-p2');
+    expect(within(tile).getByText('Hidden')).toBeInTheDocument();
   });
 
   it('bulk delete confirms and deletes selected', async () => {
@@ -95,6 +113,16 @@ describe('AlbumTab', () => {
     await userEvent.click(screen.getByRole('button', { name: /delete selected/i }));
     await waitFor(() => expect(adminApi.deletePhoto).toHaveBeenCalledWith('p1'));
     expect(adminApi.deletePhoto).toHaveBeenCalledWith('p2');
+  });
+
+  it('bulk hide hides selected', async () => {
+    renderWithProviders(<AlbumTab event={event} />);
+    await screen.findByText('Bob');
+    await userEvent.click(within(screen.getByTestId('photo-tile-p1')).getByRole('checkbox'));
+    await userEvent.click(within(screen.getByTestId('photo-tile-p2')).getByRole('checkbox'));
+    await userEvent.click(screen.getByRole('button', { name: /hide selected/i }));
+    await waitFor(() => expect(adminApi.hidePhoto).toHaveBeenCalledWith('p1', true));
+    expect(adminApi.hidePhoto).toHaveBeenCalledWith('p2', true);
   });
 
   it('show-hidden filter toggles visibility of hidden tiles', async () => {
