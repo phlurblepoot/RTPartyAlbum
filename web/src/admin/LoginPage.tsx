@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { useAuth, SessionError } from './AuthContext';
 import { ApiError } from './api';
 
 export function LoginPage() {
@@ -18,7 +18,11 @@ export function LoginPage() {
       await login(password);
       navigate('/admin', { replace: true });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 429) {
+      if (err instanceof SessionError) {
+        setError(
+          'Password accepted, but your browser did not keep the session. This usually means the site is served over plain HTTP — try the HTTPS address.',
+        );
+      } else if (err instanceof ApiError && err.status === 429) {
         setError('Too many attempts. Please wait and try again.');
       } else if (err instanceof ApiError && err.status === 401) {
         setError('Incorrect password.');

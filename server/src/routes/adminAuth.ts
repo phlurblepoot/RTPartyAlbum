@@ -39,7 +39,13 @@ export function makeAdminAuthRouter(): Router {
     res.cookie(SESSION_COOKIE, token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: req.app.get('env') === 'production',
+      // Mark Secure based on the ACTUAL request protocol, not NODE_ENV. A browser
+      // silently drops a Secure cookie received over plain HTTP, which would break
+      // login on the common self-hosted setup (HTTP on the LAN, port 8080). With
+      // `trust proxy` enabled (see app.ts), `req.secure` is true for direct HTTPS
+      // and for a TLS-terminating reverse proxy that sets X-Forwarded-Proto: https,
+      // and false for plain HTTP — correct cookie scoping in every deployment.
+      secure: req.secure,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });

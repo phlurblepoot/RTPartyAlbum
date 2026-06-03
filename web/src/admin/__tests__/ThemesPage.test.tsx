@@ -32,6 +32,12 @@ describe('ThemesPage', () => {
     expect(screen.getByText('Mine')).toBeInTheDocument();
   });
 
+  it('surfaces a load error when listThemes fails', async () => {
+    (adminApi.listThemes as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('401'));
+    renderWithProviders(<ThemesPage />);
+    expect(await screen.findByText(/failed to load themes/i)).toBeInTheDocument();
+  });
+
   it('delete is disabled for presets', async () => {
     renderWithProviders(<ThemesPage />);
     await screen.findByText('Neon Night');

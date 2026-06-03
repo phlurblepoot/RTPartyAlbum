@@ -58,6 +58,18 @@ describe('admin auth', () => {
     await waitFor(() => expect(screen.getByText('SECRET')).toBeInTheDocument());
   });
 
+  it('shows session guidance when login succeeds but the cookie is not retained', async () => {
+    // me() rejects on mount (login page) AND after login (cookie dropped, e.g. Secure over HTTP).
+    (adminApi.me as ReturnType<typeof vi.fn>).mockRejectedValue(new ApiError(401, 'no'));
+    (adminApi.login as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    render(<Protected />);
+    const input = await screen.findByLabelText(/password/i);
+    await userEvent.type(input, 'hunter2');
+    await userEvent.click(screen.getByRole('button', { name: /log in/i }));
+    expect(await screen.findByText(/did not keep the session/i)).toBeInTheDocument();
+    expect(screen.queryByText('SECRET')).not.toBeInTheDocument();
+  });
+
   it('wrong password shows error on 401', async () => {
     (adminApi.me as ReturnType<typeof vi.fn>).mockRejectedValue(new ApiError(401, 'no'));
     (adminApi.login as ReturnType<typeof vi.fn>).mockRejectedValue(new ApiError(401, 'bad'));

@@ -8,7 +8,7 @@ export function ThemesPage() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Theme | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { data: themes } = useQuery({ queryKey: ['admin', 'themes'], queryFn: () => adminApi.listThemes() });
+  const { data: themes, isLoading, isError } = useQuery({ queryKey: ['admin', 'themes'], queryFn: () => adminApi.listThemes() });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['admin', 'themes'] });
   const toError = (err: unknown) =>
@@ -37,6 +37,8 @@ export function ThemesPage() {
     <section className="themes-page" data-testid="themes-page">
       <h1>Themes</h1>
       {error && <p role="alert">{error}</p>}
+      {isLoading && <p>Loading…</p>}
+      {isError && <p role="alert">Failed to load themes.</p>}
       <ul className="theme-list">
         {(themes ?? []).map((t) => (
           <li key={t.id} data-testid={`theme-row-${t.id}`}>
