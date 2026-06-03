@@ -67,6 +67,19 @@ describe('SPA serving (web build present)', () => {
     expect(res.headers['content-type']).toMatch(/javascript/);
   });
 
+  it('hashed assets get a long immutable max-age; index.html / client routes revalidate', async () => {
+    const app = buildApp(deps({ webDir: makeWebDir() }));
+    // Content-addressed asset -> cache long + immutable.
+    const asset = await request(app).get('/assets/app.js');
+    expect(asset.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    // Static index.html (if requested directly) -> no-cache.
+    const indexDirect = await request(app).get('/index.html');
+    expect(indexDirect.headers['cache-control']).toBe('no-cache');
+    // SPA-fallback client route also serves index.html with no-cache.
+    const clientRoute = await request(app).get('/e/SOMECODE');
+    expect(clientRoute.headers['cache-control']).toBe('no-cache');
+  });
+
   it('GET / returns the SPA index.html', async () => {
     const app = buildApp(deps({ webDir: makeWebDir() }));
     const res = await request(app).get('/');

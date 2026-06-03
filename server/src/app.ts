@@ -91,17 +91,35 @@ export function buildApp(deps: AppDeps): Express {
     // Static assets (js/css/index.html). `index: false` so we control the SPA
     // fallback below rather than letting express.static serve index.html for
     // the bare GET / (we still want unknown asset paths to flow to the fallback).
-    app.use(express.static(config.webDir, { index: false, maxAge: '1h' }));
+    // Cache policy: hashed assets (index-<hash>.js/.css) are content-addressed,
+    // so cache them long + immutable. index.html is the entry point and MUST
+    // revalidate (no-cache) — otherwise after a deploy a client holding a stale
+    // index.html would request now-deleted asset hashes and break for up to the
+    // cache TTL.
+    app.use(
+      express.static(config.webDir, {
+        index: false,
+        setHeaders(res, filePath) {
+          if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      }),
+    );
     // SPA fallback: GET requests outside /api and /media that weren't served as
     // a static file get index.html so the client router can take over. Non-GET
-    // and /api//media requests fall through to the existing handlers (so an
+    // and /api and /media requests fall through to the existing handlers (so an
     // unknown /api route still returns JSON 404 via the error handler).
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();
       if (req.path.startsWith('/api') || req.path.startsWith('/media')) return next();
+      // Entry point must revalidate so deploys pick up fresh asset hashes.
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(indexHtml);
     });
-  } else {
+  } else if (config.nodeEnv !== 'test') {
     // eslint-disable-next-line no-console
     console.info(`[app] web build not found at ${config.webDir}; serving API only`);
   }
