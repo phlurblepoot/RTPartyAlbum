@@ -91,9 +91,12 @@ export function makePhotoRepo(db: Db): PhotoRepo {
              @device_id, @user_agent, @ip_address)`,
   );
   const selById = db.prepare(`SELECT ${COLS} FROM photos WHERE id = ?`);
-  const selAdmin = db.prepare(`SELECT ${COLS} FROM photos WHERE event_id = ? ORDER BY created_at DESC, id DESC`);
+  // rowid DESC is a monotonic insertion-order tiebreaker so same-millisecond
+  // created_at values still sort newest-first deterministically. photos has a
+  // TEXT PRIMARY KEY, so SQLite does NOT alias id->rowid; reference rowid explicitly.
+  const selAdmin = db.prepare(`SELECT ${COLS} FROM photos WHERE event_id = ? ORDER BY created_at DESC, rowid DESC`);
   const selPublic = db.prepare(
-    `SELECT ${COLS} FROM photos WHERE event_id = ? AND is_hidden = 0 ORDER BY created_at DESC, id DESC`,
+    `SELECT ${COLS} FROM photos WHERE event_id = ? AND is_hidden = 0 ORDER BY created_at DESC, rowid DESC`,
   );
   const setHiddenStmt = db.prepare(`UPDATE photos SET is_hidden = ? WHERE id = ?`);
   const del = db.prepare(`DELETE FROM photos WHERE id = ?`);

@@ -42,7 +42,7 @@ describe('seed', () => {
     seed({ themeRepo, settingsRepo });
     const secret = settingsRepo.get(SETTINGS_KEYS.sessionSecret);
     expect(typeof secret).toBe('string');
-    expect((secret ?? '').length).toBeGreaterThanOrEqual(32);
+    expect((secret ?? '').length).toBe(64);
     db.close();
   });
 

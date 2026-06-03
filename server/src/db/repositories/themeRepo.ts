@@ -35,8 +35,9 @@ export function makeThemeRepo(db: Db): ThemeRepo {
     `INSERT INTO themes (id, name, is_preset, tokens) VALUES (?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET name = excluded.name, is_preset = excluded.is_preset, tokens = excluded.tokens`,
   );
-  const updName = db.prepare('UPDATE themes SET name = ? WHERE id = ?');
-  const updTokens = db.prepare('UPDATE themes SET tokens = ? WHERE id = ?');
+  const updStmt = db.prepare(
+    'UPDATE themes SET name = COALESCE(?, name), tokens = COALESCE(?, tokens) WHERE id = ? AND is_preset = 0',
+  );
   const del = db.prepare('DELETE FROM themes WHERE id = ?');
 
   function getById(id: string): Theme | undefined {
@@ -57,8 +58,13 @@ export function makeThemeRepo(db: Db): ThemeRepo {
   function update(id: string, input: { name?: string; tokens?: ThemeTokens }): Theme | undefined {
     const existing = getById(id);
     if (!existing) return undefined;
-    if (input.name !== undefined) updName.run(input.name, id);
-    if (input.tokens !== undefined) updTokens.run(JSON.stringify(input.tokens), id);
+    // Single atomic UPDATE; COALESCE leaves untouched columns as-is.
+    // is_preset = 0 guard means presets are never mutated here.
+    updStmt.run(
+      input.name ?? null,
+      input.tokens ? JSON.stringify(input.tokens) : null,
+      id,
+    );
     return getById(id);
   }
 
