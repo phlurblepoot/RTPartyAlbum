@@ -87,13 +87,14 @@ export function createEngineState(album: Photo[], config: MotionConfig): EngineS
 }
 
 function markLeaving(
-  state: EngineState,
+  onCanvas: Tile[],
+  leftAt: Record<string, number>,
   tile: Tile,
   now: number,
 ): { onCanvas: Tile[]; leftAt: Record<string, number> } {
-  const onCanvas = state.onCanvas.map((t) => (t === tile ? { ...t, leaving: true } : t));
-  const leftAt = { ...state.leftAt, [tile.photo.id]: now };
-  return { onCanvas, leftAt };
+  const nextOnCanvas = onCanvas.map((t) => (t === tile ? { ...t, leaving: true } : t));
+  const nextLeftAt = { ...leftAt, [tile.photo.id]: now };
+  return { onCanvas: nextOnCanvas, leftAt: nextLeftAt };
 }
 
 export function tick(state: EngineState, now: number, rng: Rng): EngineState {
@@ -103,17 +104,30 @@ export function tick(state: EngineState, now: number, rng: Rng): EngineState {
   let queue = state.queue;
   const { config } = state;
 
-  // 1. Remove fully-left tiles (leave grace elapsed).
-  onCanvas = onCanvas.filter((t) => {
-    if (!t.leaving) return true;
-    const mark = leftAt[t.photo.id];
-    return !(mark !== undefined && now - mark >= LEAVE_GRACE_MS);
-  });
+  // 1. Remove fully-left tiles (leave grace elapsed) and prune their leftAt entries
+  //    so leftAt only ever holds ids of tiles still on canvas AND leaving (no leak
+  //    over a long-running display where photos cycle out indefinitely).
+  const removedIds = new Set(
+    onCanvas
+      .filter(
+        (t) =>
+          t.leaving &&
+          leftAt[t.photo.id] !== undefined &&
+          now - leftAt[t.photo.id] >= LEAVE_GRACE_MS,
+      )
+      .map((t) => t.photo.id),
+  );
+  if (removedIds.size) {
+    onCanvas = onCanvas.filter((t) => !removedIds.has(t.photo.id));
+    leftAt = Object.fromEntries(
+      Object.entries(leftAt).filter(([id]) => !removedIds.has(id)),
+    );
+  }
 
   // 2. Mark dwell-expired non-leaving tiles leaving.
   for (const t of onCanvas) {
     if (!t.leaving && t.dwellMs !== Infinity && now - t.bornAt >= t.dwellMs) {
-      const r = markLeaving({ ...state, onCanvas, leftAt }, t, now);
+      const r = markLeaving(onCanvas, leftAt, t, now);
       onCanvas = r.onCanvas;
       leftAt = r.leftAt;
     }
@@ -142,20 +156,22 @@ export function tick(state: EngineState, now: number, rng: Rng): EngineState {
   //    filling slots that natural rotation frees (avoids unbounded churn / growth).
   while (nonLeaving().length > config.maxOnCanvas) {
     const oldest = [...nonLeaving()].sort((a, b) => a.bornAt - b.bornAt)[0];
-    const r = markLeaving({ ...state, onCanvas, leftAt }, oldest, now);
+    const r = markLeaving(onCanvas, leftAt, oldest, now);
     onCanvas = r.onCanvas;
     leftAt = r.leftAt;
   }
   if (queuedWaiting() && nonLeaving().length >= config.maxOnCanvas) {
     const oldest = [...nonLeaving()].sort((a, b) => a.bornAt - b.bornAt)[0];
     if (oldest) {
-      const r = markLeaving({ ...state, onCanvas, leftAt }, oldest, now);
+      const r = markLeaving(onCanvas, leftAt, oldest, now);
       onCanvas = r.onCanvas;
       leftAt = r.leftAt;
     }
   }
 
   // 4. Admit from queue (priority) then album-cycle (least-recently-shown), up to cap.
+  // Note: lastShownAt is bounded by album size (one entry per distinct photo ever
+  // shown), so it is intentionally NOT pruned — unlike leftAt, which is pruned above.
   const admit = (photo: Photo) => {
     const tile = makeTile(photo, config, now, rng);
     onCanvas = [...onCanvas, tile];

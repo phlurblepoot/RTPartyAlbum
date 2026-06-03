@@ -92,6 +92,38 @@ describe('tick admission', () => {
     expect(s.onCanvas.some((t) => t.leaving)).toBe(true);
   });
 
+  it('prunes leftAt when a leaving tile is removed past grace (no memory leak)', () => {
+    let s: EngineState = createEngineState(albumOf(5), cfg3);
+    s = tick(s, 0, constRng(0.5)); // 3 tiles, dwellMs = 45000 each
+    const shown = new Set(s.onCanvas.map((t) => t.photo.id));
+    s = tick(s, 45000, constRng(0.5)); // dwell -> mark leaving (leftAt populated)
+    // while leaving, leftAt holds exactly the currently-leaving tile ids
+    const leavingNow = s.onCanvas.filter((t) => t.leaving).map((t) => t.photo.id);
+    expect(leavingNow.length).toBeGreaterThan(0);
+    for (const id of leavingNow) expect(s.leftAt[id]).toBeDefined();
+    s = tick(s, 45000 + LEAVE_GRACE_MS, constRng(0.5)); // remove past grace
+    // the removed (now no longer leaving) photos' leftAt entries must be gone.
+    const stillLeaving = new Set(
+      s.onCanvas.filter((t) => t.leaving).map((t) => t.photo.id),
+    );
+    for (const id of leavingNow) {
+      if (!stillLeaving.has(id)) expect(s.leftAt[id]).toBeUndefined();
+    }
+    // invariant: leftAt only holds ids of tiles still on canvas AND leaving
+    for (const id of Object.keys(s.leftAt)) expect(stillLeaving.has(id)).toBe(true);
+    // multi-cycle: drive several dwell+grace rotations; leftAt stays bounded by
+    // the number of currently-leaving tiles (<= cap), never accumulating.
+    void shown;
+    for (let i = 1; i <= 6; i += 1) {
+      const base = 45000 + i * 60000;
+      s = tick(s, base, constRng(0.5)); // mark dwell-expired leaving
+      s = tick(s, base + LEAVE_GRACE_MS, constRng(0.5)); // remove past grace
+      const leavingCount = s.onCanvas.filter((t) => t.leaving).length;
+      expect(Object.keys(s.leftAt).length).toBe(leavingCount);
+      expect(Object.keys(s.leftAt).length).toBeLessThanOrEqual(s.config.maxOnCanvas);
+    }
+  });
+
   it('idle cycling pulls fresh album photos over time (least-recently-shown)', () => {
     let s: EngineState = createEngineState(albumOf(5), cfg3);
     s = tick(s, 0, constRng(0.5)); // shows 3 of 5
