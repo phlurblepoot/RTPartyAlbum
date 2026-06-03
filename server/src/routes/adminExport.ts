@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import type { EventRepo } from '../db/repositories/eventRepo.js';
 import type { PhotoRepo } from '../db/repositories/photoRepo.js';
-import type { RealtimeEmitters } from '../realtime/realtime.js';
 import { streamAlbumZip, type PhotoWithPath } from '../services/exportService.js';
 
 /**
