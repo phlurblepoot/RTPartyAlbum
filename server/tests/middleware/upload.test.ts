@@ -49,6 +49,16 @@ describe('upload middleware', () => {
     expect(res.status).toBe(400);
   });
 
+  it('accepts an unspecified mimetype (octet-stream) — HEIC from desktop browsers', async () => {
+    const app = appWith(5 * 1024 * 1024);
+    const jpeg = await makeJpegBuffer(100, 100);
+    const res = await request(app)
+      .post('/u')
+      .attach('files', jpeg, { filename: 'IMG_1234.HEIC', contentType: 'application/octet-stream' });
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(1);
+  });
+
   it('rejects a file larger than the per-file cap', async () => {
     const app = appWith(1024); // 1KB cap
     const jpeg = await makeJpegBuffer(400, 400); // > 1KB

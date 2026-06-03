@@ -30,6 +30,8 @@ function uploadErrorMessage(err: unknown): string {
       case 'photo_too_large':
       case 'video_too_large':
         return "That file is too big — it didn't make it.";
+      case 'unsupported_type':
+        return "That file type isn't supported.";
       default:
         if (err.status === 403) return 'Uploads just closed — sorry!';
         if (err.status === 429) return 'Slow down a moment — try again shortly.';
