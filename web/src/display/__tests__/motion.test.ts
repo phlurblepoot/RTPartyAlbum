@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { motionPropsFor } from '../motion';
+import { motionPropsFor, motionTravelPx } from '../motion';
 
 const styles = ['drift', 'current', 'orbit', 'mosaic'] as const;
 
@@ -28,12 +28,26 @@ describe('motionPropsFor', () => {
     expect(Array.isArray(animateOf('mosaic', 1).y)).toBe(true);
   });
 
-  it('orbit animates rotate over a full turn with x/y-matched cadence', () => {
+  it('orbit traces a circular path via x/y and never rotates the image (no upside-down)', () => {
     const animate = animateOf('orbit', 1);
-    expect(animate.rotate).toEqual([0, 90, 180, 270, 360]);
-    // rotate must share the x/y keyframe cadence so the tile traces a circle
-    expect((animate.rotate as number[]).length).toBe((animate.x as number[]).length);
-    expect((animate.rotate as number[]).length).toBe((animate.y as number[]).length);
+    // The image must NOT rotate — a full-turn rotate flips photos upside down.
+    expect(animate.rotate).toBeUndefined();
+    // x/y keyframes share a cadence and are phase-shifted so the tile circles its anchor.
+    expect(Array.isArray(animate.x)).toBe(true);
+    expect(Array.isArray(animate.y)).toBe(true);
+    expect((animate.x as number[]).length).toBe((animate.y as number[]).length);
+  });
+
+  it('no motion style rotates the image (keeps photos upright)', () => {
+    for (const style of styles) {
+      expect(animateOf(style, 1).rotate).toBeUndefined();
+    }
+  });
+
+  it('exposes a positive edge-safety travel for every style', () => {
+    for (const style of styles) {
+      expect(motionTravelPx(style)).toBeGreaterThan(0);
+    }
   });
 
   it('scales duration inversely with speed', () => {

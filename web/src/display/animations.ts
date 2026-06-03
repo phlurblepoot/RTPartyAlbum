@@ -31,8 +31,9 @@ export function enterVariant(key: EnterAnimation): EnterVariant {
         transition: { duration: 0.7, ease: 'easeOut' },
       };
     case 'spinIn':
+      // Capped below 180° so the photo never passes through a fully upside-down frame.
       return {
-        initial: { opacity: 0, rotate: -180, scale: 0.5 },
+        initial: { opacity: 0, rotate: -120, scale: 0.5 },
         animate: { opacity: 1, rotate: 0, scale: 1 },
         transition: { type: 'spring', stiffness: 140, damping: 14 },
       };
@@ -56,7 +57,8 @@ export function leaveVariant(key: LeaveAnimation): LeaveVariant {
     case 'shrinkFade':
       return { exit: { opacity: 0, scale: 0.3, transition: { duration: 0.8 } } };
     case 'spinOut':
-      return { exit: { opacity: 0, rotate: 180, scale: 0.4, transition: { duration: 0.9 } } };
+      // Capped below 180° so the photo never flips fully upside down on the way out.
+      return { exit: { opacity: 0, rotate: 140, scale: 0.4, transition: { duration: 0.9 } } };
     case 'slideAway':
       return { exit: { opacity: 0, y: 200, transition: { duration: 0.9 } } };
     default: {

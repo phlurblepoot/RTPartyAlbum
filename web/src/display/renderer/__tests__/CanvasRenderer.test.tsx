@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import { CanvasRenderer } from '../CanvasRenderer';
+import { CanvasRenderer, tilePosition, EDGE_MARGIN_PX } from '../CanvasRenderer';
+import { motionTravelPx } from '../../motion';
 import { makeTile } from '../../rotationEngine';
 import { makePhoto, testConfig, constRng } from '../../__tests__/fixtures';
 import { PRESET_THEME_TOKENS } from './testTheme';
@@ -17,13 +18,37 @@ describe('CanvasRenderer', () => {
     const els = container.querySelectorAll('[data-tile-id]');
     expect(els).toHaveLength(2);
     const first = els[0] as HTMLElement;
-    const size = Math.round(tiles[0].size);
+    const pos = tilePosition(tiles[0], PRESET_THEME_TOKENS.caption.enabled);
     // width is the tile size in px
-    expect(first.style.width).toBe(`${size}px`);
-    // positioned within the safe band [0, canvas - size] so tiles near the
-    // far edges stay fully on-canvas (x/y are 0..1 normalized).
-    expect(first.style.left).toBe(`calc(${tiles[0].x} * (100% - ${size}px))`);
-    expect(first.style.top).toBe(`calc(${tiles[0].y} * (100% - ${size}px))`);
+    expect(first.style.width).toBe(`${pos.size}px`);
+    // positioned within the edge-safe band (margin + glide travel inset, and the
+    // vertical band reserves the tile's true rendered height).
+    expect(first.style.left).toBe(pos.left);
+    expect(first.style.top).toBe(pos.top);
+  });
+
+  it('insets tiles from the edge by margin + glide travel and reserves portrait height', () => {
+    // A portrait photo (taller than wide) at the far corner (x=y=1).
+    const portrait = makePhoto('port', { width: 800, height: 1200 });
+    const tile = { ...makeTile(portrait, testConfig, 0, constRng(0.9)), x: 1, y: 1 };
+    const { left, top } = tilePosition(tile, true);
+    const inset = EDGE_MARGIN_PX + motionTravelPx(tile.motion);
+    const size = Math.round(tile.size);
+    const height = Math.round(size * (1200 / 800)) + 34; // aspect height + caption allowance
+    // At x=1/y=1 the tile sits at (100% - size - inset) / (100% - height - inset):
+    // a full `inset` gutter remains on the trailing edge, and the band reserves the
+    // taller portrait height so the bottom never overflows.
+    expect(left).toBe(`calc(${inset}px + 1 * (100% - ${size + inset * 2}px))`);
+    expect(top).toBe(`calc(${inset}px + 1 * (100% - ${height + inset * 2}px))`);
+    expect(height).toBeGreaterThan(size); // portrait reserves more vertical room than width
+  });
+
+  it('still renders a leaving tile (drives its exit choreography)', () => {
+    const tile = { ...makeTile(makePhoto('go'), testConfig, 0, constRng(0.5)), leaving: true };
+    const { container } = render(
+      <CanvasRenderer tiles={[tile]} config={testConfig} theme={PRESET_THEME_TOKENS} />,
+    );
+    expect(container.querySelector('[data-tile-id="go"]')).not.toBeNull();
   });
 
   it('renders tile content (Tile component) inside each motion.div', () => {
