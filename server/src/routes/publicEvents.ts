@@ -86,24 +86,21 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
     },
   });
 
-  // Multipart parser. The byte cap depends on settings (which are only reachable
-  // per-request via req.app), so build the middleware lazily on first request and
-  // cache it. The cap = max(photo, video) bytes; finer per-type caps are enforced
-  // afterward by validateUpload against the true received byte count.
-  let cachedUpload: RequestHandler | undefined;
-  const uploadMiddleware: RequestHandler = (req, res, next) => {
-    if (!cachedUpload) {
-      const settingsRepo = req.app.get('settingsRepo') as SettingsRepo;
-      const limits = getMediaLimits(settingsRepo);
-      const perFileMax = Math.max(limits.photoMaxBytes, limits.videoMaxBytes);
-      cachedUpload = makeUploadMiddleware(perFileMax);
-    }
-    cachedUpload(req, res, next);
+  // Multipart parser. The coarse byte cap = max(photo, video) bytes from CURRENT
+  // settings; finer per-type caps are enforced afterward by validateUpload against the
+  // true received byte count. Build the multer middleware PER REQUEST (cheap, pure
+  // config, no I/O) so a runtime media_limits change takes effect immediately — a cached
+  // middleware would keep a stale cap and let oversized files buffer fully into memory.
+  const dynamicUpload: RequestHandler = (req, res, next) => {
+    const settingsRepo = req.app.get('settingsRepo') as SettingsRepo;
+    const limits = getMediaLimits(settingsRepo);
+    const perFileMax = Math.max(limits.photoMaxBytes, limits.videoMaxBytes);
+    makeUploadMiddleware(perFileMax)(req, res, next);
   };
 
   router.post(
     '/by-code/:code/upload',
-    uploadMiddleware, // parse multipart first so req.body.deviceId exists for the limiter
+    dynamicUpload, // parse multipart first so req.body.deviceId exists for the limiter
     uploadLimiter,
     async (req, res, next) => {
       const eventRepo = req.app.get('eventRepo') as EventRepo;
