@@ -50,3 +50,19 @@ export function computeSize(base: number, variance: number, rng: Rng): number {
   const max = base * (1 + variance);
   return min + rng() * (max - min);
 }
+
+export const MAX_TILE_ROTATION_DEG = 8;
+
+export function makeTile(photo: Photo, config: MotionConfig, now: number, rng: Rng): Tile {
+  const motion = pickWeighted(config.motionWeights, rng);
+  const enter = pickWeighted(config.enterWeights, rng);
+  const leave = pickWeighted(config.leaveWeights, rng);
+  const size = computeSize(config.baseSize, config.sizeVariance, rng);
+  const x = rng();
+  const y = rng();
+  const rotation = (rng() * 2 - 1) * MAX_TILE_ROTATION_DEG;
+  const dwellMs = config.dwell.enabled
+    ? config.dwell.durationMs + (rng() * 2 - 1) * config.dwell.varianceMs
+    : Infinity;
+  return { photo, motion, enter, leave, size, x, y, rotation, bornAt: now, dwellMs, leaving: false };
+}
