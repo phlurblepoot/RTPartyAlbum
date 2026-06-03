@@ -20,9 +20,12 @@ describe('motionPropsFor', () => {
     expect(Array.isArray(motionPropsFor('mosaic', 1).animate.y)).toBe(true);
   });
 
-  it('orbit animates rotate over a full turn', () => {
+  it('orbit animates rotate over a full turn with x/y-matched cadence', () => {
     const p = motionPropsFor('orbit', 1);
-    expect(p.animate.rotate).toEqual([0, 360]);
+    expect(p.animate.rotate).toEqual([0, 90, 180, 270, 360]);
+    // rotate must share the x/y keyframe cadence so the tile traces a circle
+    expect((p.animate.rotate as number[]).length).toBe((p.animate.x as number[]).length);
+    expect((p.animate.rotate as number[]).length).toBe((p.animate.y as number[]).length);
   });
 
   it('scales duration inversely with speed', () => {

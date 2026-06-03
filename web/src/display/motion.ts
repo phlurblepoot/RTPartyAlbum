@@ -30,14 +30,17 @@ export function motionPropsFor(style: MotionStyle, speed: number): MotionProps {
       };
     case 'orbit':
       return {
-        animate: { rotate: [0, 360], x: [0, 18, 0, -18, 0], y: [0, 18, 0, -18, 0] },
+        animate: { rotate: [0, 90, 180, 270, 360], x: [0, 18, 0, -18, 0], y: [0, 18, 0, -18, 0] },
         transition: { duration, repeat: Infinity, repeatType: 'loop', ease: 'easeInOut' },
       };
     case 'mosaic':
-    default:
       return {
         animate: { x: [0, 8, -8, 0], y: [0, 6, -6, 0] },
         transition: { duration, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' },
       };
+    default: {
+      const _exhaustive: never = style;
+      throw new Error(`unknown motion style: ${String(_exhaustive)}`);
+    }
   }
 }

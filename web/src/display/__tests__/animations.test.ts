@@ -23,6 +23,8 @@ describe('leaveVariant', () => {
     for (const key of leaves) {
       const v = leaveVariant(key);
       expect(v.exit).toBeTypeOf('object');
+      // opacity resolves to fully hidden in exit (symmetry with enter)
+      expect(v.exit.opacity).toBe(0);
     }
   });
 });

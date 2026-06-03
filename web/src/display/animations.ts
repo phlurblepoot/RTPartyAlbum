@@ -36,12 +36,15 @@ export function enterVariant(key: EnterAnimation): EnterVariant {
         transition: { type: 'spring', stiffness: 140, damping: 14 },
       };
     case 'dropBounce':
-    default:
       return {
         initial: { opacity: 0, y: -200 },
         animate: { opacity: 1, y: 0 },
         transition: { type: 'spring', stiffness: 200, damping: 12, bounce: 0.6 },
       };
+    default: {
+      const _exhaustive: never = key;
+      throw new Error(`unknown enter animation: ${String(_exhaustive)}`);
+    }
   }
 }
 
@@ -54,7 +57,10 @@ export function leaveVariant(key: LeaveAnimation): LeaveVariant {
     case 'spinOut':
       return { exit: { opacity: 0, rotate: 180, scale: 0.4, transition: { duration: 0.9 } } };
     case 'slideAway':
-    default:
       return { exit: { opacity: 0, y: 200, transition: { duration: 0.9 } } };
+    default: {
+      const _exhaustive: never = key;
+      throw new Error(`unknown leave animation: ${String(_exhaustive)}`);
+    }
   }
 }
