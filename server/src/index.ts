@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from './config.js';
@@ -7,6 +8,7 @@ import { seed } from './db/seed.js';
 import { makeSettingsRepo } from './db/repositories/settingsRepo.js';
 import { makeThemeRepo } from './db/repositories/themeRepo.js';
 import { buildApp } from './app.js';
+import { initRealtime } from './realtime/realtime.js';
 
 function ensureDirs(dataDir: string, uploadsDir: string): void {
   mkdirSync(join(dataDir, 'media', 'display'), { recursive: true });
@@ -25,8 +27,15 @@ function main(): void {
   const themeRepo = makeThemeRepo(db);
   seed({ themeRepo, settingsRepo, sessionSecret: config.sessionSecret });
 
-  const app = buildApp({ db, config });
-  app.listen(config.port, () => {
+  // Create the bare HTTP server first so Socket.IO can attach its upgrade
+  // handler to it, then build the app with the REAL realtime emitters and route
+  // plain HTTP requests to Express. This shares one port for HTTP + WebSocket.
+  const httpServer = createServer();
+  const realtime = initRealtime(httpServer);
+  const app = buildApp({ db, config, realtime });
+  httpServer.on('request', app);
+
+  httpServer.listen(config.port, () => {
     // eslint-disable-next-line no-console
     console.log(`[rtpa] server listening on :${config.port} (env=${config.nodeEnv})`);
   });
