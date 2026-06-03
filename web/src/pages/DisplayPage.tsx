@@ -78,14 +78,19 @@ export function DisplayPage({
 
   // Seed the engine once both queries resolve. A single tick fills onCanvas up
   // to maxOnCanvas (admission loops until the cap, draining queue then album).
+  // Depend ONLY on the query data — `now`/`rng` are read from refs so default
+  // props (fresh closures every render in production, since router.tsx renders
+  // <DisplayPage /> with no props) cannot retrigger this effect. Otherwise the
+  // seed would re-run every render, re-creating the EngineState in an unbounded
+  // re-seed/re-render loop.
   useEffect(() => {
     if (!eventQuery.data || !photosQuery.data) return;
     setTheme(eventQuery.data.theme);
-    clockRef.current = now();
+    clockRef.current = nowRef.current();
     let s = createEngineState(photosQuery.data, eventQuery.data.motionConfig);
-    s = tick(s, clockRef.current, rng);
+    s = tick(s, clockRef.current, rngRef.current);
     setState(s);
-  }, [eventQuery.data, photosQuery.data, rng, now]);
+  }, [eventQuery.data, photosQuery.data]);
 
   // Socket wiring. Handlers use functional setState so they always act on the
   // latest engine state (no stale closure). Cleanup removes only our handlers;

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DisplayPage } from '../DisplayPage';
 import { makePhoto, testConfig } from '../../display/__tests__/fixtures';
 import { PRESET_THEME_TOKENS } from '../../display/renderer/__tests__/testTheme';
+import * as rotationEngine from '../../display/rotationEngine';
 import type { PublicEvent, Photo } from '@rtpa/shared';
 
 // --- fakes ---
@@ -89,7 +90,24 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
+
+// Renders <DisplayPage /> with NO injected props — the exact production path
+// router.tsx uses, where `now`/`rng`/`tickMs` fall back to defaults (fresh
+// closures every render).
+function renderPageDefaultProps() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={['/e/ABC/display']}>
+        <Routes>
+          <Route path="/e/:code/display" element={<DisplayPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
 
 describe('DisplayPage', () => {
   it('initial fill does not exceed maxOnCanvas and joins the room', async () => {
@@ -152,5 +170,19 @@ describe('DisplayPage', () => {
     const { container } = renderPage();
     await waitFor(() => expect(container.querySelectorAll('[data-tile-id]').length).toBeGreaterThan(0));
     expect(container.querySelector('[data-testid="canvas-surface"]')).not.toBeNull();
+  });
+
+  it('seeds the engine exactly once with default props (no re-seed loop)', async () => {
+    // Regression: the seed effect must NOT depend on `now`/`rng`. With default
+    // props (the production router.tsx path), those are fresh closures every
+    // render; if the effect depended on them it would re-seed unboundedly.
+    const seedSpy = vi.spyOn(rotationEngine, 'createEngineState');
+    const { container } = renderPageDefaultProps();
+    await waitFor(() => expect(container.querySelectorAll('[data-tile-id]').length).toBeGreaterThan(0));
+    // Let any stray render-triggered re-seeds accumulate before asserting.
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(seedSpy).toHaveBeenCalledTimes(1);
   });
 });
