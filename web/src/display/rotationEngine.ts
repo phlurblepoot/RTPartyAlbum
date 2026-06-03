@@ -66,3 +66,14 @@ export function makeTile(photo: Photo, config: MotionConfig, now: number, rng: R
     : Infinity;
   return { photo, motion, enter, leave, size, x, y, rotation, bornAt: now, dwellMs, leaving: false };
 }
+
+export function enqueueUpload(state: EngineState, photo: Photo): EngineState {
+  const inAlbum = state.album.some((p) => p.id === photo.id);
+  const album = inAlbum ? state.album : [...state.album, photo];
+
+  const onCanvas = state.onCanvas.some((t) => t.photo.id === photo.id);
+  const inQueue = state.queue.some((p) => p.id === photo.id);
+  const queue = onCanvas || inQueue ? state.queue : [photo, ...state.queue];
+
+  return { ...state, queue, album };
+}
