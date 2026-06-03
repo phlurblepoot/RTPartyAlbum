@@ -30,4 +30,27 @@ describe('getDeviceId', () => {
     expect(getDeviceId()).toBe('preexisting');
     expect(crypto.randomUUID).not.toHaveBeenCalled();
   });
+
+  it('tolerates unavailable localStorage and returns a stable in-memory id', async () => {
+    // Use the real crypto.randomUUID for this case so we can assert a valid uuid.
+    (crypto.randomUUID as ReturnType<typeof vi.fn>).mockRestore();
+    // Fresh module so the module-level memoryId starts null.
+    vi.resetModules();
+    const throwing = vi.fn(() => {
+      throw new Error('localStorage is not available');
+    });
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(throwing);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(throwing);
+
+    const { getDeviceId: getDeviceIdFresh } = await import('./deviceId');
+
+    let id!: string;
+    expect(() => {
+      id = getDeviceIdFresh();
+    }).not.toThrow();
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+
+    // Second call in the same session returns the SAME in-memory id.
+    expect(getDeviceIdFresh()).toBe(id);
+  });
 });
