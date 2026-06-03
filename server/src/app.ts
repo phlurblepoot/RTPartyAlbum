@@ -31,6 +31,8 @@ export interface AppDeps {
   db: Db;
   config: Config;
   realtime?: RealtimeEmitters;
+  /** Optional override for the public upload rate-limit window max (tests use a tiny value). */
+  uploadRateMax?: number;
 }
 
 /**
@@ -39,7 +41,7 @@ export interface AppDeps {
  * routers can reach them (and add `realtime`/repos) without changing this signature.
  */
 export function buildApp(deps: AppDeps): Express {
-  const { db, config, realtime = noopRealtime } = deps;
+  const { db, config, realtime = noopRealtime, uploadRateMax } = deps;
   const app = express();
   app.disable('x-powered-by');
   // Trust the first proxy hop (reverse proxy on Unraid/Docker) so `req.ip`
@@ -66,7 +68,7 @@ export function buildApp(deps: AppDeps): Express {
   app.use(express.json());
 
   app.use('/api/health', healthRouter());
-  app.use('/api/events', makePublicEventsRouter());
+  app.use('/api/events', makePublicEventsRouter({ uploadRateMax }));
   app.use('/api/admin', makeAdminAuthRouter());
   app.use('/api/admin/events', requireAuth, makeAdminEventsRouter());
   app.use('/api/admin/themes', requireAuth, makeAdminThemesRouter());

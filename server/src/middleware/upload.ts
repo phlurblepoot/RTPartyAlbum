@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import multer from 'multer';
+import { HttpError } from './errorHandler.js';
 
 export const UPLOAD_FIELD = 'files';
 export const UPLOAD_MAX_COUNT = 20;
@@ -21,7 +22,9 @@ export function makeUploadMiddleware(perFileMaxBytes: number): RequestHandler {
       if (family === 'image' || family === 'video') {
         cb(null, true);
       } else {
-        cb(new Error(`unsupported mimetype: ${file.mimetype}`));
+        // Throw a typed HttpError so the terminal error handler maps it to 400
+        // (rather than treating an unrecognized fileFilter Error as a 500).
+        cb(new HttpError(400, `unsupported mimetype: ${file.mimetype}`));
       }
     },
   });
