@@ -161,6 +161,12 @@ describe('UploadPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/note\.txt/i);
     expect(uploadFiles).not.toHaveBeenCalled();
+
+    // Re-picking the same unsupported file replaces (does not pile up) the toast.
+    await userEvent.upload(picker, bad, { applyAccept: false });
+    await waitFor(() =>
+      expect(screen.getAllByText(/note\.txt/i)).toHaveLength(1),
+    );
   });
 
   it('maps a too-many-uploads error to a friendly slow-down message', async () => {
@@ -189,5 +195,28 @@ describe('UploadPage', () => {
 
     expect(await screen.findByText(/add your name/i)).toBeInTheDocument();
     expect(uploadFiles).not.toHaveBeenCalled();
+  });
+
+  it('disables the file input while an upload is in flight (double-submit guard)', async () => {
+    vi.mocked(getPublicEvent).mockResolvedValue(baseEvent);
+    let resolveUpload: (photos: Photo[]) => void = () => {};
+    vi.mocked(uploadFiles).mockImplementation(
+      () => new Promise<Photo[]>((resolve) => { resolveUpload = resolve; }),
+    );
+
+    renderPage();
+    const input = await screen.findByLabelText(/your name/i);
+    await userEvent.type(input, 'Robin');
+
+    const file = new File(['x'], 'pic.jpg', { type: 'image/jpeg' });
+    const picker = screen.getByLabelText(/add photos/i) as HTMLInputElement;
+    await userEvent.upload(picker, file);
+
+    await waitFor(() => expect(uploadFiles).toHaveBeenCalledTimes(1));
+    // While the upload promise is pending the picker is disabled.
+    await waitFor(() => expect(picker).toBeDisabled());
+
+    resolveUpload([]);
+    await waitFor(() => expect(picker).not.toBeDisabled());
   });
 });

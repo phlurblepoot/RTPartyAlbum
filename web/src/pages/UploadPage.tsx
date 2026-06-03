@@ -1,6 +1,6 @@
-import { useContext, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { QueryClientContext, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { Photo } from '../api/types';
 import { getPublicEvent, uploadFiles, ApiError } from '../api/client';
 import { getDeviceId } from '../lib/deviceId';
@@ -46,28 +46,8 @@ function rejectionMessage(name: string, reason: 'bad-type' | 'too-large'): strin
     : `${name} isn't a supported photo or video`;
 }
 
-/**
- * Wrapper that tolerates being rendered without a QueryClientProvider (the
- * Task 1 router smoke test mounts this page bare). When no client is present we
- * render a minimal placeholder that still exposes the `upload-page` testid and
- * the event code; with a client we delegate to the real page.
- */
 export default function UploadPage() {
   const { code = '' } = useParams<{ code: string }>();
-  const queryClient = useContext(QueryClientContext);
-
-  if (!queryClient) {
-    return (
-      <div className="rtpa-upload rtpa-upload--state" data-testid="upload-page">
-        <p>Loading the party… {code}</p>
-      </div>
-    );
-  }
-
-  return <UploadPageInner code={code} />;
-}
-
-function UploadPageInner({ code }: { code: string }) {
   const { name, setName } = useUploaderName();
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -99,12 +79,9 @@ function UploadPageInner({ code }: { code: string }) {
     const picked = Array.from(fileList);
     const { accepted, rejected } = validateFiles(picked, DEFAULT_MEDIA_LIMITS);
 
-    if (rejected.length > 0) {
-      setRejections((prev) => [
-        ...prev,
-        ...rejected.map((r) => rejectionMessage(r.file.name, r.reason)),
-      ]);
-    }
+    // Replace (don't accumulate) so each pick shows only its own rejections,
+    // symmetric with how uploadError is cleared above.
+    setRejections(rejected.map((r) => rejectionMessage(r.file.name, r.reason)));
 
     if (accepted.length === 0) return;
 
@@ -204,7 +181,6 @@ function UploadPageInner({ code }: { code: string }) {
               aria-label="Add photos / videos"
               accept="image/*,video/*"
               multiple
-              capture="environment"
               className="rtpa-upload__file-input"
               disabled={uploading}
               onChange={(e) => {
@@ -215,7 +191,15 @@ function UploadPageInner({ code }: { code: string }) {
           </label>
 
           {uploading && (
-            <div className="rtpa-upload__progress" data-testid="upload-progress">
+            <div
+              className="rtpa-upload__progress"
+              data-testid="upload-progress"
+              role="progressbar"
+              aria-label="Upload progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progress * 100)}
+            >
               <div
                 className="rtpa-upload__progress-bar"
                 style={{ width: `${Math.round(progress * 100)}%` }}
