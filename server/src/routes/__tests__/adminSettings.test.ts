@@ -58,6 +58,27 @@ describe('admin settings', () => {
     expect(res.status).toBe(400);
   });
 
+  it('PUT rejects a non-URL publicBaseUrl → 400, and persists a valid URL', async () => {
+    const { app } = ctx();
+    const agent = await authed(app);
+    const bad = await agent.put('/api/admin/settings').send({ publicBaseUrl: 'not a url' });
+    expect(bad.status).toBe(400);
+
+    const good = await agent.put('/api/admin/settings').send({ publicBaseUrl: 'https://party.example.com' });
+    expect(good.status).toBe(200);
+    expect(good.body.publicBaseUrl).toBe('https://party.example.com');
+    // round-trips on GET
+    const after = await agent.get('/api/admin/settings');
+    expect(after.body.publicBaseUrl).toBe('https://party.example.com');
+  });
+
+  it('removed alias GET /api/admin/ now 404s (authenticated)', async () => {
+    const { app } = ctx();
+    const agent = await authed(app);
+    const res = await agent.get('/api/admin/');
+    expect(res.status).toBe(404);
+  });
+
   it('POST password changes hash when current is correct', async () => {
     const { app } = ctx();
     const agent = await authed(app);

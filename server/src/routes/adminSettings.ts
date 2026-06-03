@@ -11,7 +11,7 @@ const mediaLimitsSchema = z.object({
 });
 
 const updateSchema = z.object({
-  publicBaseUrl: z.string().optional(),
+  publicBaseUrl: z.string().url().or(z.literal('')).optional(),
   mediaLimits: mediaLimitsSchema.optional(),
 });
 
@@ -30,12 +30,12 @@ function readSettings(settingsRepo: SettingsRepo) {
 export function makeAdminSettingsRouter(): Router {
   const router = Router();
 
-  router.get('/', (req, res) => {
+  router.get('/settings', (req, res) => {
     const settingsRepo = req.app.get('settingsRepo') as SettingsRepo;
     res.json(readSettings(settingsRepo));
   });
 
-  router.put('/', (req, res) => {
+  router.put('/settings', (req, res) => {
     const parsed = updateSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid_body' });

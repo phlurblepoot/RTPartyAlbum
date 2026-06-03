@@ -61,7 +61,6 @@ export function buildApp(deps: AppDeps): Express {
   app.use('/api/admin', makeAdminAuthRouter());
   app.use('/api/admin/events', requireAuth, makeAdminEventsRouter());
   app.use('/api/admin/themes', requireAuth, makeAdminThemesRouter());
-  app.use('/api/admin/settings', requireAuth, makeAdminSettingsRouter());
   app.use('/api/admin', requireAuth, makeAdminSettingsRouter());
   app.use('/media', mediaRouter(config.dataDir));
 
