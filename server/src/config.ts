@@ -1,7 +1,10 @@
+import path from 'node:path';
+
 export interface Config {
   port: number;                       // PORT, default 8080
   dataDir: string;                    // DATA_DIR, default '/data' (dev: './.data')
   uploadsDir: string;                 // UPLOADS_DIR, default '/uploads' (dev: './.uploads')
+  webDir: string;                     // WEB_DIR, default <cwd>/web/dist (built SPA)
   adminPassword: string | undefined;  // ADMIN_PASSWORD (bootstrap)
   publicBaseUrl: string;              // PUBLIC_BASE_URL, default ''
   sessionSecret: string;              // SESSION_SECRET; '' means "generate & store later"
@@ -26,6 +29,9 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     port: parsePort(env.PORT, 8080),
     dataDir: env.DATA_DIR ?? (isProd ? '/data' : './.data'),
     uploadsDir: env.UPLOADS_DIR ?? (isProd ? '/uploads' : './.uploads'),
+    // Built SPA assets. WORKDIR is /app in Docker (cwd=/app) and the repo root
+    // in dev, so `<cwd>/web/dist` resolves correctly in both. WEB_DIR overrides.
+    webDir: env.WEB_DIR ?? path.join(process.cwd(), 'web', 'dist'),
     adminPassword: env.ADMIN_PASSWORD,
     publicBaseUrl: env.PUBLIC_BASE_URL ?? '',
     sessionSecret: env.SESSION_SECRET ?? '',

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { join } from 'node:path';
 import { loadConfig } from '../config.js';
 
 const ENV_KEYS = [
-  'PORT', 'DATA_DIR', 'UPLOADS_DIR', 'ADMIN_PASSWORD',
+  'PORT', 'DATA_DIR', 'UPLOADS_DIR', 'WEB_DIR', 'ADMIN_PASSWORD',
   'PUBLIC_BASE_URL', 'SESSION_SECRET', 'NODE_ENV',
 ] as const;
 
@@ -64,6 +65,13 @@ describe('loadConfig', () => {
     const c = loadConfig({ port: 1234, dataDir: '/override' });
     expect(c.port).toBe(1234);
     expect(c.dataDir).toBe('/override');
+  });
+
+  it('defaults webDir to <cwd>/web/dist and honors WEB_DIR', () => {
+    const def = loadConfig();
+    expect(def.webDir).toBe(join(process.cwd(), 'web', 'dist'));
+    process.env.WEB_DIR = '/custom/web';
+    expect(loadConfig().webDir).toBe('/custom/web');
   });
 
   it('throws on an invalid PORT', () => {

@@ -1,5 +1,7 @@
-import express, { type Express } from 'express';
+import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import type { Db } from './db/connection.js';
 import type { Config } from './config.js';
 import { healthRouter } from './routes/health.js';
@@ -78,6 +80,31 @@ export function buildApp(deps: AppDeps): Express {
   app.use('/api/admin', requireAuth, makeAdminPhotosRouter());
   app.use('/api/admin', requireAuth, makeAdminExportRouter());
   app.use('/media', mediaRouter(config.dataDir));
+
+  // Production SPA serving. Serve the built web app (web/dist) statically and
+  // fall back to index.html for client-side routes (/e/:code, /e/:code/display,
+  // /admin/*). Only wired when the build actually exists so dev/tests without a
+  // build — and the API-only image — keep the prior API-only behavior (every
+  // non-/api/non-/media route 404s as JSON).
+  const indexHtml = path.join(config.webDir, 'index.html');
+  if (existsSync(indexHtml)) {
+    // Static assets (js/css/index.html). `index: false` so we control the SPA
+    // fallback below rather than letting express.static serve index.html for
+    // the bare GET / (we still want unknown asset paths to flow to the fallback).
+    app.use(express.static(config.webDir, { index: false, maxAge: '1h' }));
+    // SPA fallback: GET requests outside /api and /media that weren't served as
+    // a static file get index.html so the client router can take over. Non-GET
+    // and /api//media requests fall through to the existing handlers (so an
+    // unknown /api route still returns JSON 404 via the error handler).
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      if (req.path.startsWith('/api') || req.path.startsWith('/media')) return next();
+      res.sendFile(indexHtml);
+    });
+  } else {
+    // eslint-disable-next-line no-console
+    console.info(`[app] web build not found at ${config.webDir}; serving API only`);
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -43,6 +43,9 @@ COPY --from=build /app/shared/package.json ./shared/package.json
 COPY --from=build /app/shared/dist ./shared/dist
 COPY --from=build /app/server/package.json ./server/package.json
 COPY --from=build /app/server/dist ./server/dist
+# Built SPA — the server (cwd=/app) serves /app/web/dist statically with an
+# index.html SPA fallback (see server/src/app.ts; matches config.webDir default).
+COPY --from=build /app/web/dist ./web/dist
 
 VOLUME ["/data", "/uploads"]
 EXPOSE 8080
