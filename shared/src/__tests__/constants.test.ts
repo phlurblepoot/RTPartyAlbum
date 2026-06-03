@@ -16,7 +16,7 @@ describe('DEFAULT_MOTION_CONFIG', () => {
     }
   });
 
-  it('weights sum to the expected total (5+2+1+2 = 10)', () => {
+  it('weights sum to the expected total (drift:5 + current:2 + orbit:1 + mosaic:2 = 10)', () => {
     const sum = Object.values(DEFAULT_MOTION_CONFIG.motionWeights).reduce((a, b) => a + b, 0);
     expect(sum).toBe(10);
   });
