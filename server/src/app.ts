@@ -8,10 +8,12 @@ import { makeAdminAuthRouter } from './routes/adminAuth.js';
 import { makeAdminEventsRouter } from './routes/adminEvents.js';
 import { makeAdminThemesRouter } from './routes/adminThemes.js';
 import { makeAdminSettingsRouter } from './routes/adminSettings.js';
+import { makePublicEventsRouter } from './routes/publicEvents.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { makeSettingsRepo } from './db/repositories/settingsRepo.js';
 import { makeEventRepo } from './db/repositories/eventRepo.js';
 import { makeThemeRepo } from './db/repositories/themeRepo.js';
+import { makePhotoRepo } from './db/repositories/photoRepo.js';
 import { ensureAdminBootstrap, requireAuth } from './auth/auth.js';
 import type { RealtimeEmitters } from './realtime/realtime.js';
 
@@ -46,18 +48,21 @@ export function buildApp(deps: AppDeps): Express {
   ensureAdminBootstrap(settingsRepo, config);
   const eventRepo = makeEventRepo(db);
   const themeRepo = makeThemeRepo(db);
+  const photoRepo = makePhotoRepo(db);
   app.set('db', db);
   app.set('config', config);
   app.set('realtime', realtime);
   app.set('settingsRepo', settingsRepo);
   app.set('eventRepo', eventRepo);
   app.set('themeRepo', themeRepo);
+  app.set('photoRepo', photoRepo);
 
   // Middleware: cookie-parser and JSON body before routes.
   app.use(cookieParser());
   app.use(express.json());
 
   app.use('/api/health', healthRouter());
+  app.use('/api/events', makePublicEventsRouter());
   app.use('/api/admin', makeAdminAuthRouter());
   app.use('/api/admin/events', requireAuth, makeAdminEventsRouter());
   app.use('/api/admin/themes', requireAuth, makeAdminThemesRouter());
