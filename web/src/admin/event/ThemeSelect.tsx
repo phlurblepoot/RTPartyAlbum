@@ -17,6 +17,7 @@ export function ThemeSelect({ event }: { event: EventDetail }) {
       <select
         aria-label="event theme"
         value={event.themeId}
+        disabled={mut.isPending}
         onChange={(e) => mut.mutate(e.target.value)}
       >
         {(themes ?? []).map((t) => (
@@ -26,6 +27,7 @@ export function ThemeSelect({ event }: { event: EventDetail }) {
           </option>
         ))}
       </select>
+      {mut.isError && <span role="alert">Failed to set theme</span>}
     </label>
   );
 }

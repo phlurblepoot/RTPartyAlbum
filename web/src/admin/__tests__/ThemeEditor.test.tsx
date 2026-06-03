@@ -31,7 +31,7 @@ describe('ThemeEditor', () => {
     fireEvent.change(accent, { target: { value: '#00ff00' } });
     const preview = screen.getByTestId('theme-preview');
     await waitFor(() =>
-      expect(preview.style.getPropertyValue('--accent')).toBe('#00ff00'),
+      expect(preview.style.getPropertyValue('--rtpa-accent')).toBe('#00ff00'),
     );
   });
 
