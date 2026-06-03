@@ -202,3 +202,14 @@ export function tick(state: EngineState, now: number, rng: Rng): EngineState {
 
   return { ...state, onCanvas, queue, leftAt, lastShownAt };
 }
+
+export function removePhoto(state: EngineState, photoId: string): EngineState {
+  const onCanvas = state.onCanvas.filter((t) => t.photo.id !== photoId);
+  const queue = state.queue.filter((p) => p.id !== photoId);
+  const album = state.album.filter((p) => p.id !== photoId);
+  const leftAt = { ...state.leftAt };
+  const lastShownAt = { ...state.lastShownAt };
+  delete leftAt[photoId];
+  delete lastShownAt[photoId];
+  return { ...state, onCanvas, queue, album, leftAt, lastShownAt };
+}
