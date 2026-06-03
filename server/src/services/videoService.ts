@@ -60,6 +60,8 @@ export function probeVideo(inputPath: string): Promise<VideoProbe> {
  * Transcode a video to a display MP4 (H.264, yuv420p, faststart, trimmed to
  * maxDurationSec, longest edge <= 1280) and extract a JPEG poster frame (~0.5s, <= 480).
  * Returns absolute paths plus the resulting display dimensions and (capped) duration.
+ * On rejection, any partial derived outputs (the display mp4 / poster jpg) are removed;
+ * cleanup of the original upload file remains the caller's responsibility.
  */
 export async function processVideo(
   inputPath: string,
@@ -75,54 +77,63 @@ export async function processVideo(
   const displayPath = path.join(displayDir, `${photoId}.mp4`);
   const thumbPath = path.join(thumbDir, `${photoId}.jpg`);
 
-  const source = await probeVideo(inputPath);
-  const longest = Math.max(source.width, source.height);
-  // scale filter: clamp longest edge to DISPLAY_MAX, preserve aspect, keep even dims.
-  const scaleFilter =
-    longest > DISPLAY_MAX
-      ? source.width >= source.height
-        ? `scale=${DISPLAY_MAX}:-2`
-        : `scale=-2:${DISPLAY_MAX}`
-      : 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
+  try {
+    const source = await probeVideo(inputPath);
+    const longest = Math.max(source.width, source.height);
+    // scale filter: clamp longest edge to DISPLAY_MAX, preserve aspect, keep even dims.
+    const scaleFilter =
+      longest > DISPLAY_MAX
+        ? source.width >= source.height
+          ? `scale=${DISPLAY_MAX}:-2`
+          : `scale=-2:${DISPLAY_MAX}`
+        : 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
 
-  await new Promise<void>((resolve, reject) => {
-    ffmpeg(inputPath)
-      .videoCodec('libx264')
-      .noAudio()
-      .duration(maxDurationSec)
-      .videoFilters(scaleFilter)
-      .outputOptions(['-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-preset', 'veryfast'])
-      .save(displayPath)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err));
-  });
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(inputPath)
+        .videoCodec('libx264')
+        .noAudio()
+        .duration(maxDurationSec)
+        .videoFilters(scaleFilter)
+        .outputOptions(['-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-preset', 'veryfast'])
+        .save(displayPath)
+        .on('end', () => resolve())
+        .on('error', (err) => reject(err));
+    });
 
-  // Poster frame at ~0.5s (or near 0 if shorter), scaled to fit <= 480 longest edge
-  // (preserve aspect; do not upscale; keep even dims for clean jpeg downscale).
-  const posterSec = Math.min(0.5, Math.max(0, source.durationMs / 1000 - 0.05));
-  const posterScale =
-    longest > THUMB_MAX
-      ? source.width >= source.height
-        ? `scale=${THUMB_MAX}:-2`
-        : `scale=-2:${THUMB_MAX}`
-      : 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
-  await new Promise<void>((resolve, reject) => {
-    ffmpeg(inputPath)
-      .seekInput(posterSec)
-      .frames(1)
-      .videoFilters(posterScale)
-      .outputOptions(['-q:v', '3'])
-      .save(thumbPath)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err));
-  });
+    // Poster frame at ~0.5s (or near 0 if shorter), scaled to fit <= 480 longest edge
+    // (preserve aspect; do not upscale; keep even dims for clean jpeg downscale).
+    // The -0.05s end-buffer keeps the seek strictly before EOF so a clip barely
+    // longer than the seek target still yields a decodable frame (not past-end).
+    const posterSec = Math.min(0.5, Math.max(0, source.durationMs / 1000 - 0.05));
+    const posterScale =
+      longest > THUMB_MAX
+        ? source.width >= source.height
+          ? `scale=${THUMB_MAX}:-2`
+          : `scale=-2:${THUMB_MAX}`
+        : 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(inputPath)
+        .seekInput(posterSec)
+        .frames(1)
+        .videoFilters(posterScale)
+        .outputOptions(['-q:v', '3'])
+        .save(thumbPath)
+        .on('end', () => resolve())
+        .on('error', (err) => reject(err));
+    });
 
-  const out = await probeVideo(displayPath);
-  return {
-    displayPath,
-    thumbPath,
-    width: out.width,
-    height: out.height,
-    durationMs: out.durationMs,
-  };
+    const out = await probeVideo(displayPath);
+    return {
+      displayPath,
+      thumbPath,
+      width: out.width,
+      height: out.height,
+      durationMs: out.durationMs,
+    };
+  } catch (err) {
+    // Remove any partial/zero-byte derived outputs before rethrowing.
+    await fs.rm(displayPath, { force: true }).catch(() => {});
+    await fs.rm(thumbPath, { force: true }).catch(() => {});
+    throw err;
+  }
 }

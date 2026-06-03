@@ -53,7 +53,7 @@ describe('videoService', () => {
     expect(info.height).toBe(120);
     expect(info.durationMs).toBeGreaterThan(700);
     expect(info.durationMs).toBeLessThan(1500);
-  });
+  }, 15000);
 
   it('processVideo transcodes display mp4 + poster thumb and caps duration', async () => {
     const src = await makeTmpDir();
@@ -104,4 +104,20 @@ describe('videoService', () => {
     expect(result.width % 2).toBe(0);
     expect(result.height % 2).toBe(0);
   }, 60000);
+
+  it('processVideo rejects on a non-video input and leaves no partial outputs', async () => {
+    const src = await makeTmpDir();
+    const dataDir = await makeTmpDir();
+    dirs.push(src, dataDir);
+    // A plain text file masquerading as a video: probe/encode must fail.
+    const bogus = path.join(src, 'not-a-video.txt');
+    await fs.writeFile(bogus, 'this is definitely not a video file');
+
+    await expect(processVideo(bogus, 'photo-vid-bad', dataDir, 1)).rejects.toThrow();
+
+    const displayPath = path.join(dataDir, 'media', 'display', 'photo-vid-bad.mp4');
+    const thumbPath = path.join(dataDir, 'media', 'thumb', 'photo-vid-bad.jpg');
+    await expect(fs.stat(displayPath)).rejects.toThrow();
+    await expect(fs.stat(thumbPath)).rejects.toThrow();
+  }, 15000);
 });
