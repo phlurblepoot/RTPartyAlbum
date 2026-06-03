@@ -31,13 +31,20 @@ export function makeAdminPhotosRouter(): Router {
     const eventRepo = req.app.get('eventRepo') as EventRepo;
     const realtime = req.app.get('realtime') as RealtimeEmitters;
 
+    // Require an explicit boolean. A missing/typo'd/string field must NOT silently
+    // coerce to false (which would unhide the photo) — reject as a bad request.
+    if (typeof req.body?.hidden !== 'boolean') {
+      res.status(400).json({ error: 'invalid_body' });
+      return;
+    }
+    const hidden = req.body.hidden;
+
     const photo = photoRepo.getById(req.params.id);
     if (!photo) {
       res.status(404).json({ error: 'not_found' });
       return;
     }
 
-    const hidden = req.body?.hidden === true;
     photoRepo.setHidden(photo.id, hidden);
 
     const event = eventRepo.getById(photo.eventId);

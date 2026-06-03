@@ -134,4 +134,29 @@ describe('admin hide/delete', () => {
     const res = await agent.delete('/api/admin/photos/nonexistent-photo-id');
     expect(res.status).toBe(404);
   });
+
+  it('hide rejects a non-boolean hidden field without mutating or emitting', async () => {
+    const dataDir = await makeTmpDir();
+    const uploadsDir = await makeTmpDir();
+    dirs.push(dataDir, uploadsDir);
+    const { app, emitted, repos, seedActiveEvent } = await createTestApp({ dataDir, uploadsDir });
+    await seedActiveEvent({ code: 'hd3', uploadEnabled: true });
+    const photo = await uploadOne(app, 'hd3');
+    const agent = await loginAdmin(app);
+
+    const before = repos.photoRepo.getById(photo.id)!.isHidden;
+    const emittedCountBefore = emitted.length;
+
+    // a stringy "true" must NOT silently coerce — it is a bad request
+    const res = await agent.post(`/api/admin/photos/${photo.id}/hide`).send({ hidden: 'true' });
+    expect(res.status).toBe(400);
+
+    // a missing field is likewise rejected
+    const res2 = await agent.post(`/api/admin/photos/${photo.id}/hide`).send({});
+    expect(res2.status).toBe(400);
+
+    // state unchanged and nothing broadcast
+    expect(repos.photoRepo.getById(photo.id)!.isHidden).toBe(before);
+    expect(emitted.length).toBe(emittedCountBefore);
+  });
 });
