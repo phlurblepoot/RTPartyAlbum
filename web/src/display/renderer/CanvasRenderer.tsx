@@ -9,9 +9,15 @@ interface CanvasRendererProps {
   tiles: TileModel[];
   config: MotionConfig;
   theme: ThemeTokens;
+  /**
+   * When true (prefers-reduced-motion), tiles render with a single quiet
+   * fade-in (opacity + static tilt) and no looping glide motion, no
+   * entrance/exit choreography.
+   */
+  reducedMotion?: boolean;
 }
 
-export function CanvasRenderer({ tiles, config, theme }: CanvasRendererProps) {
+export function CanvasRenderer({ tiles, config, theme, reducedMotion = false }: CanvasRendererProps) {
   return (
     <div
       data-testid="canvas-surface"
@@ -28,6 +34,30 @@ export function CanvasRenderer({ tiles, config, theme }: CanvasRendererProps) {
           // near x=1 / y=1 stays fully on-canvas instead of overflowing by `size`.
           const left = `calc(${tile.x} * (100% - ${size}px))`;
           const top = `calc(${tile.y} * (100% - ${size}px))`;
+
+          if (reducedMotion) {
+            // Calm path: a single fade-in to its resting place, static tilt,
+            // no glide loop and no entrance/exit choreography.
+            return (
+              <motion.div
+                key={tile.photo.id}
+                data-tile-id={tile.photo.id}
+                style={{
+                  position: 'absolute',
+                  left,
+                  top,
+                  width: `${size}px`,
+                  transformOrigin: 'center center',
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1, rotate: tile.rotation }}
+                transition={{ duration: 0.4 }}
+              >
+                <Tile tile={tile} theme={theme} />
+              </motion.div>
+            );
+          }
+
           return (
             // OUTER: the keyed AnimatePresence child. Owns positioning + the
             // one-shot ENTER (initial/animate) and EXIT (on removal). No glide here,

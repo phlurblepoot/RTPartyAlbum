@@ -55,4 +55,12 @@ describe('CanvasRenderer', () => {
     expect(container.querySelector('[data-tile-id="alpha"]')).not.toBeNull();
     expect(container.querySelector('[data-tile-id="beta"]')).not.toBeNull();
   });
+
+  it('renders static (no looping motion) under reducedMotion', () => {
+    const tiles = [makeTile(makePhoto('p1'), testConfig, 0, constRng(0.5))];
+    const { container } = render(
+      <CanvasRenderer tiles={tiles} config={testConfig} theme={PRESET_THEME_TOKENS} reducedMotion />,
+    );
+    expect(container.querySelector('[data-tile-id="p1"]')).not.toBeNull();
+  });
 });

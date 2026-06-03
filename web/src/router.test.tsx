@@ -64,9 +64,11 @@ describe('router', () => {
     expect(screen.getByTestId('upload-page')).toHaveTextContent('PARTY1');
   });
 
-  it('renders the DisplayPage placeholder for /e/:code/display', () => {
+  it('renders the DisplayPage loading state for /e/:code/display', () => {
+    // getPublicEvent / getPublicPhotos are mocked as pending promises above,
+    // so DisplayPage renders its loading surface until the engine seeds.
     renderRouter(['/e/PARTY1/display']);
-    expect(screen.getByTestId('display-placeholder')).toBeInTheDocument();
+    expect(screen.getByTestId('display-loading')).toBeInTheDocument();
   });
 
   it('renders the Admin loading state for /admin (auth check pending)', () => {
