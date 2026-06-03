@@ -53,6 +53,11 @@ describe('admin auth routes', () => {
     const app = makeApp();
     const res = await request(app).post('/api/admin/logout');
     expect(res.status).toBe(204);
+    const cookies = res.headers['set-cookie'] as unknown as string[];
+    // clearCookie emits an expired rtpa_session cookie (Expires epoch / Max-Age=0).
+    const cleared = cookies.find((c) => c.startsWith('rtpa_session='));
+    expect(cleared).toBeDefined();
+    expect(/expires=thu, 01 jan 1970|max-age=0/i.test(cleared!)).toBe(true);
   });
 
   it('rate-limits repeated login attempts with 429', async () => {
