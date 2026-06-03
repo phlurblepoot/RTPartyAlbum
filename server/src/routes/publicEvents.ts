@@ -148,10 +148,14 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
       const eventDir = path.join(config.uploadsDir, event.id);
       await fs.mkdir(eventDir, { recursive: true });
 
-      // Track originals written so a later processing failure can clean them all up
-      // (we reject the whole request on failure rather than persisting a partial batch).
-      const writtenOriginals: string[] = [];
+      // The batch is all-or-nothing: if any file fails, we roll back EVERY artifact
+      // produced so far in this request — DB rows AND files (original + derived) — so a
+      // mid-batch failure never leaves orphan rows or files behind. We also only emit
+      // photo:added after the whole batch succeeds.
       const created: Photo[] = [];
+      const persisted: Array<{ rowId: string; originalPath: string; displayPath: string; thumbPath: string }> = [];
+      // An original written but not yet persisted as a row (failure between write and create).
+      let pendingOriginal: string | null = null;
 
       try {
         for (const file of files) {
@@ -170,7 +174,7 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
           // Write the original first (images and videos): videoService needs a file PATH,
           // and keeping the original on disk is the storage contract.
           await fs.writeFile(originalPath, file.buffer);
-          writtenOriginals.push(originalPath);
+          pendingOriginal = originalPath;
 
           if (v.mediaType === 'image') {
             const out = await processImage(file.buffer, photoId, config.dataDir);
@@ -188,6 +192,8 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
               userAgent,
               ipAddress,
             });
+            persisted.push({ rowId: row.id, originalPath, displayPath: out.displayPath, thumbPath: out.thumbPath });
+            pendingOriginal = null;
             created.push(toPublicPhoto(row));
           } else {
             const out = await processVideo(
@@ -210,15 +216,28 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
               userAgent,
               ipAddress,
             });
+            persisted.push({ rowId: row.id, originalPath, displayPath: out.displayPath, thumbPath: out.thumbPath });
+            pendingOriginal = null;
             created.push(toPublicPhoto(row));
           }
         }
       } catch (err) {
-        // Clean up every original we wrote in this batch. processImage/processVideo
-        // already remove their own partial derived outputs on failure.
-        await Promise.all(
-          writtenOriginals.map((p) => fs.rm(p, { force: true }).catch(() => undefined)),
-        );
+        // Roll back the ENTIRE batch: delete every persisted row and its files, plus the
+        // in-flight original that failed before a row was created. processImage/processVideo
+        // already remove their own partial derived outputs, but we force-remove here too so
+        // cleanup is idempotent regardless of where the failure happened.
+        const rmFile = (p: string) => fs.rm(p, { force: true }).catch(() => undefined);
+        for (const a of persisted) {
+          try {
+            photoRepo.remove(a.rowId);
+          } catch {
+            // best-effort row removal; continue cleaning files
+          }
+        }
+        await Promise.all([
+          ...persisted.flatMap((a) => [rmFile(a.originalPath), rmFile(a.displayPath), rmFile(a.thumbPath)]),
+          ...(pendingOriginal ? [rmFile(pendingOriginal)] : []),
+        ]);
         if (err instanceof UploadValidationError) {
           res.status(400).json({ error: err.code });
           return;

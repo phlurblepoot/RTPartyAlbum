@@ -160,6 +160,55 @@ describe('POST /api/events/by-code/:code/upload', () => {
     expect(admin.deviceId).toBe('dev-v');
   });
 
+  it('rolls back the whole batch (DB rows + files) when a later file fails to process', async () => {
+    const { dataDir, uploadsDir } = await dirsForTest();
+    const { app, eventRepo, photoRepo, realtime, seedEvent } = await makeApp({ dataDir, uploadsDir });
+    const ev = seedEvent({ code: 'atomic1', uploadEnabled: true });
+
+    const goodJpeg = await makeJpegBuffer(400, 300);
+    // Valid JPEG magic bytes (FF D8 FF E0) but a corrupt/garbage body: passes
+    // validateUpload (magic detect = image) yet makes sharp/processImage throw —
+    // a genuine MID-BATCH processing failure, not a validation rejection.
+    const corruptJpeg = Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+      Buffer.alloc(128, 0x41),
+    ]);
+
+    const res = await request(app)
+      .post('/api/events/by-code/atomic1/upload')
+      .field('uploaderName', 'Atom')
+      .field('deviceId', 'dev-a')
+      .attach('files', goodJpeg, 'good.jpg')
+      .attach('files', corruptJpeg, 'bad.jpg');
+
+    // Masked 5xx body (NOT a 400 validation rejection): proves the failure came from
+    // processing the second file, after the first was already persisted.
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'internal_error' });
+
+    // No emit for any photo when the batch fails.
+    expect(realtime.emitPhotoAdded).not.toHaveBeenCalled();
+
+    // Zero rows survive (the first file's row was rolled back).
+    expect(photoRepo.listForEventAdmin(ev.id)).toHaveLength(0);
+    expect(photoRepo.countForEvent(ev.id)).toBe(0);
+    const photos = await request(app).get('/api/events/by-code/atomic1/photos');
+    expect(photos.body).toEqual([]);
+
+    // No leftover originals under uploads/<eventId>.
+    const eventDir = path.join(uploadsDir, ev.id);
+    const originals = await fs.readdir(eventDir).catch(() => [] as string[]);
+    expect(originals).toHaveLength(0);
+
+    // No leftover derived files under dataDir/media (display + thumb).
+    const displayFiles = await fs.readdir(path.join(dataDir, 'media', 'display')).catch(() => [] as string[]);
+    const thumbFiles = await fs.readdir(path.join(dataDir, 'media', 'thumb')).catch(() => [] as string[]);
+    expect(displayFiles).toHaveLength(0);
+    expect(thumbFiles).toHaveLength(0);
+
+    void eventRepo;
+  });
+
   it('returns 403 when uploads are disabled', async () => {
     const { dataDir, uploadsDir } = await dirsForTest();
     const { app, seedEvent } = await makeApp({ dataDir, uploadsDir });
