@@ -1,0 +1,46 @@
+/* Ambient overlay effects for the Backdrop component.
+   Each variant is subtle and sits behind all photo tiles (lower z-index).
+   All animations respect prefers-reduced-motion. */
+
+.ambient-none {
+  opacity: 0;
+}
+
+.ambient-glow {
+  background: radial-gradient(60% 60% at 50% 40%, rgba(255, 255, 255, 0.18), transparent 70%);
+}
+
+.ambient-bokeh {
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.18) 0 6px, transparent 7px),
+    radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.12) 0 10px, transparent 11px),
+    radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.1) 0 8px, transparent 9px);
+  filter: blur(2px);
+  animation: bokeh-drift 18s ease-in-out infinite alternate;
+}
+
+.ambient-particles {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.6) 0 1px, transparent 2px);
+  background-size: 48px 48px;
+  opacity: 0.25;
+  animation: particles-drift 24s linear infinite;
+}
+
+@keyframes bokeh-drift {
+  0% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.05) translate(1%, -1%); }
+  100% { transform: scale(1) translate(-1%, 1%); }
+}
+
+@keyframes particles-drift {
+  0% { background-position: 0 0; }
+  100% { background-position: 48px 48px; }
+}
+
+/* Respect prefers-reduced-motion: disable all ambient animations */
+@media (prefers-reduced-motion: reduce) {
+  .ambient-bokeh,
+  .ambient-particles {
+    animation: none;
+  }
+}
