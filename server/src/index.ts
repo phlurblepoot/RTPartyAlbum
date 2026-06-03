@@ -23,7 +23,7 @@ function main(): void {
 
   const settingsRepo = makeSettingsRepo(db);
   const themeRepo = makeThemeRepo(db);
-  seed({ themeRepo, settingsRepo });
+  seed({ themeRepo, settingsRepo, sessionSecret: config.sessionSecret });
 
   const app = buildApp({ db, config });
   app.listen(config.port, () => {

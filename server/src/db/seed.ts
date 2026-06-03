@@ -12,11 +12,14 @@ import type { SettingsRepo } from './repositories/settingsRepo.js';
 export interface SeedDeps {
   themeRepo: ThemeRepo;
   settingsRepo: SettingsRepo;
+  /** Operator-provided session secret (from SESSION_SECRET env var). When absent or
+   *  empty a secure random secret is generated. Ignored if a secret is already stored. */
+  sessionSecret?: string;
 }
 
 /** Seed preset themes and default settings. Safe to run on every boot (idempotent). */
 export function seed(deps: SeedDeps): void {
-  const { themeRepo, settingsRepo } = deps;
+  const { themeRepo, settingsRepo, sessionSecret } = deps;
 
   for (const theme of PRESET_THEMES) {
     themeRepo.upsertPreset(theme);
@@ -31,7 +34,11 @@ export function seed(deps: SeedDeps): void {
   }
 
   if (settingsRepo.get(SETTINGS_KEYS.sessionSecret) === undefined) {
-    settingsRepo.set(SETTINGS_KEYS.sessionSecret, randomBytes(32).toString('hex'));
+    const chosen =
+      typeof sessionSecret === 'string' && sessionSecret.length > 0
+        ? sessionSecret
+        : randomBytes(32).toString('hex');
+    settingsRepo.set(SETTINGS_KEYS.sessionSecret, chosen);
   }
 }
 

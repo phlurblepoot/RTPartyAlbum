@@ -37,12 +37,41 @@ describe('seed', () => {
     db.close();
   });
 
-  it('generates and stores a session secret when absent', () => {
+  it('generates and stores a session secret when absent (no sessionSecret provided)', () => {
     const { db, themeRepo, settingsRepo } = freshSeededDb();
     seed({ themeRepo, settingsRepo });
     const secret = settingsRepo.get(SETTINGS_KEYS.sessionSecret);
     expect(typeof secret).toBe('string');
     expect((secret ?? '').length).toBe(64);
+    db.close();
+  });
+
+  it('generates a 64-hex-char secret when sessionSecret is an empty string', () => {
+    const { db, themeRepo, settingsRepo } = freshSeededDb();
+    seed({ themeRepo, settingsRepo, sessionSecret: '' });
+    const secret = settingsRepo.get(SETTINGS_KEYS.sessionSecret);
+    expect(typeof secret).toBe('string');
+    expect((secret ?? '').length).toBe(64);
+    db.close();
+  });
+
+  it('stores the operator-provided sessionSecret when settings has none', () => {
+    const { db, themeRepo, settingsRepo } = freshSeededDb();
+    const operatorSecret = 'my-super-secret-value';
+    seed({ themeRepo, settingsRepo, sessionSecret: operatorSecret });
+    expect(settingsRepo.get(SETTINGS_KEYS.sessionSecret)).toBe(operatorSecret);
+    db.close();
+  });
+
+  it('does not overwrite an existing session secret (idempotent)', () => {
+    const { db, themeRepo, settingsRepo } = freshSeededDb();
+    // First seed — no operator secret; a random one is generated
+    seed({ themeRepo, settingsRepo });
+    const firstSecret = settingsRepo.get(SETTINGS_KEYS.sessionSecret);
+
+    // Second seed with a different operator secret — existing value must win
+    seed({ themeRepo, settingsRepo, sessionSecret: 'different-operator-secret' });
+    expect(settingsRepo.get(SETTINGS_KEYS.sessionSecret)).toBe(firstSecret);
     db.close();
   });
 

@@ -27,6 +27,11 @@ npm run build -w @rtpa/shared
 npm run dev -w @rtpa/server  # starts the API on http://localhost:8080
 ```
 
+> **Note:** Scoped per-workspace commands (e.g. `npm test -w @rtpa/server`) require
+> `@rtpa/shared` to be built first (`npm run build -w @rtpa/shared`), because the server
+> resolves shared types from `shared/dist/`. Run the build step once after a fresh clone
+> or after changing anything in `shared/`.
+
 In development the server stores data under `./.data` and originals under
 `./.uploads` (auto-created). Health check:
 
