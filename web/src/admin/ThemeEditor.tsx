@@ -4,10 +4,12 @@ import { adminApi, ApiError } from './api';
 import { themeVars, backgroundStyle, frameStyle } from '../lib/themeCss';
 import type { Theme, ThemeTokens } from '@rtpa/shared';
 
+// Stand-in "photos" for the live preview. Plain colors (no external image
+// requests) so the preview always renders cleanly regardless of uploads.
 const SAMPLE = [
-  { name: 'Alice', src: '/media/thumb/sample1.jpg' },
-  { name: 'Bob', src: '/media/thumb/sample2.jpg' },
-  { name: 'Cara', src: '/media/thumb/sample3.jpg' },
+  { name: 'Alice', color: '#cdd9e3' },
+  { name: 'Bob', color: '#f1ccd0' },
+  { name: 'Cara', color: '#d2e6cf' },
 ];
 
 export function ThemeEditor({ theme, onSaved }: { theme: Theme; onSaved: (t: Theme) => void }) {
@@ -125,7 +127,7 @@ export function ThemeEditor({ theme, onSaved }: { theme: Theme; onSaved: (t: The
       <div className="theme-preview" data-testid="theme-preview" style={previewStyle}>
         {SAMPLE.map((s) => (
           <figure key={s.name} style={frameStyle(tokens)}>
-            <img src={s.src} alt={s.name} />
+            <div style={{ background: s.color }} aria-label={s.name} />
             {tokens.caption.enabled && (
               <figcaption style={{ background: tokens.caption.bg, color: tokens.caption.color }}>{s.name}</figcaption>
             )}

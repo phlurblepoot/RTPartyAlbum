@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi, ApiError } from './api';
 import { ThemeEditor } from './ThemeEditor';
+import { ThemeSwatch } from './ThemeSwatch';
 import type { Theme } from '@rtpa/shared';
 
 export function ThemesPage() {
@@ -35,26 +36,39 @@ export function ThemesPage() {
 
   return (
     <section className="themes-page" data-testid="themes-page">
-      <h1>Themes</h1>
+      <header className="page-head">
+        <h1>Themes</h1>
+      </header>
+      <p className="field-hint">
+        Themes control how photos look on the big screen — background, photo frame, captions and
+        accent colour. Presets are read-only; duplicate one to make an editable copy.
+      </p>
       {error && <p role="alert">{error}</p>}
       {isLoading && <p>Loading…</p>}
       {isError && <p role="alert">Failed to load themes.</p>}
       <ul className="theme-list">
         {(themes ?? []).map((t) => (
-          <li key={t.id} data-testid={`theme-row-${t.id}`}>
-            <button type="button" data-action="edit" onClick={() => setEditing(t)}>{t.name}</button>
-            {t.isPreset && <span className="badge">preset</span>}
-            <button type="button" data-action="duplicate" onClick={() => dupMut.mutate(t)}>Duplicate</button>
-            <button
-              type="button"
-              data-action="delete"
-              disabled={t.isPreset}
-              onClick={() => {
-                if (window.confirm(`Delete theme "${t.name}"?`)) delMut.mutate(t.id);
-              }}
-            >
-              Delete
-            </button>
+          <li key={t.id} data-testid={`theme-row-${t.id}`} className="theme-card">
+            <ThemeSwatch tokens={t.tokens} />
+            <div className="theme-card__head">
+              <button type="button" data-action="edit" className="theme-card__name" onClick={() => setEditing(t)}>
+                {t.name}
+              </button>
+              {t.isPreset && <span className="badge badge-ended">preset</span>}
+            </div>
+            <div className="theme-card__actions">
+              <button type="button" data-action="duplicate" onClick={() => dupMut.mutate(t)}>Duplicate</button>
+              <button
+                type="button"
+                data-action="delete"
+                disabled={t.isPreset}
+                onClick={() => {
+                  if (window.confirm(`Delete theme "${t.name}"?`)) delMut.mutate(t.id);
+                }}
+              >
+                Delete
+              </button>
+            </div>
           </li>
         ))}
       </ul>

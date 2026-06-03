@@ -35,7 +35,8 @@ export function LoginPage() {
   }
 
   return (
-    <form onSubmit={onSubmit} aria-label="Admin login">
+    <div className="admin-auth">
+      <form onSubmit={onSubmit} aria-label="Admin login">
       <h1>Admin Login</h1>
       <label htmlFor="admin-password">Password</label>
       <input
@@ -47,6 +48,7 @@ export function LoginPage() {
       />
       {error && <p role="alert">{error}</p>}
       <button type="submit" disabled={busy}>Log in</button>
-    </form>
+      </form>
+    </div>
   );
 }

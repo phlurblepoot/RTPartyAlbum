@@ -11,9 +11,66 @@ import type {
   LeaveAnimation,
 } from '@rtpa/shared';
 
-const MOTION_STYLES: MotionStyle[] = ['drift', 'current', 'orbit', 'mosaic'];
-const ENTER_ANIMS: EnterAnimation[] = ['flyInEdge', 'scalePop', 'fadeGrow', 'spinIn', 'dropBounce'];
-const LEAVE_ANIMS: LeaveAnimation[] = ['driftOffEdge', 'shrinkFade', 'spinOut', 'slideAway'];
+interface Info {
+  label: string;
+  hint: string;
+}
+
+const MOTION_INFO: Record<MotionStyle, Info> = {
+  drift: { label: 'Drift', hint: 'Gentle aimless wandering' },
+  current: { label: 'Current', hint: 'Slow sideways sweep, like a stream' },
+  orbit: { label: 'Orbit', hint: 'Circles around its spot (stays upright)' },
+  mosaic: { label: 'Mosaic', hint: 'Tight, snappy grid-like steps' },
+};
+const ENTER_INFO: Record<EnterAnimation, Info> = {
+  flyInEdge: { label: 'Fly in', hint: 'Slides in from the side' },
+  scalePop: { label: 'Pop', hint: 'Pops in from small' },
+  fadeGrow: { label: 'Fade + grow', hint: 'Fades while growing in' },
+  spinIn: { label: 'Spin in', hint: 'Spins upright as it appears' },
+  dropBounce: { label: 'Drop', hint: 'Drops in with a bounce' },
+};
+const LEAVE_INFO: Record<LeaveAnimation, Info> = {
+  driftOffEdge: { label: 'Drift off', hint: 'Slides off to the side' },
+  shrinkFade: { label: 'Shrink', hint: 'Shrinks and fades out' },
+  spinOut: { label: 'Spin out', hint: 'Spins away' },
+  slideAway: { label: 'Slide down', hint: 'Slides downward out of view' },
+};
+
+const MOTION_STYLES = Object.keys(MOTION_INFO) as MotionStyle[];
+const ENTER_ANIMS = Object.keys(ENTER_INFO) as EnterAnimation[];
+const LEAVE_ANIMS = Object.keys(LEAVE_INFO) as LeaveAnimation[];
+
+/** A labelled 0–10 "how often" weight slider with a live value readout. */
+function WeightRow({
+  info,
+  value,
+  ariaLabel,
+  onChange,
+}: {
+  info: Info;
+  value: number;
+  ariaLabel: string;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="control-row">
+      <div className="control-row__head">
+        <span className="control-row__name">{info.label}</span>
+        <span className="control-row__value">{value === 0 ? 'off' : `${value}/10`}</span>
+      </div>
+      <span className="control-row__hint">{info.hint}</span>
+      <input
+        type="range"
+        min={0}
+        max={10}
+        step={1}
+        value={value}
+        aria-label={ariaLabel}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </div>
+  );
+}
 
 export function DisplayTab({ event }: { event: EventDetail }) {
   const queryClient = useQueryClient();
@@ -59,34 +116,36 @@ export function DisplayTab({ event }: { event: EventDetail }) {
           </span>
         )}
       </div>
+      <p className="field-hint">
+        Changes save automatically and update any open display within a second or two.
+      </p>
 
       <ThemeSelect event={event} />
 
       <fieldset>
-        <legend>Motion-style mix</legend>
+        <legend>How photos move</legend>
+        <span className="field-hint">
+          Higher = that motion is picked more often. Set to “off” to never use it.
+        </span>
         {MOTION_STYLES.map((s) => (
-          <label key={s}>
-            {s}
-            <input
-              type="range"
-              min={0}
-              max={10}
-              step={1}
-              value={config.motionWeights[s]}
-              aria-label={`motion weight ${s}`}
-              onChange={(e) =>
-                update({
-                  ...config,
-                  motionWeights: { ...config.motionWeights, [s]: Number(e.target.value) },
-                })
-              }
-            />
-          </label>
+          <WeightRow
+            key={s}
+            info={MOTION_INFO[s]}
+            value={config.motionWeights[s]}
+            ariaLabel={`motion weight ${s}`}
+            onChange={(n) =>
+              update({ ...config, motionWeights: { ...config.motionWeights, [s]: n } })
+            }
+          />
         ))}
       </fieldset>
 
-      <label>
-        Overall speed
+      <div className="control-row">
+        <div className="control-row__head">
+          <span className="control-row__name">Overall speed</span>
+          <span className="control-row__value">{config.speed}×</span>
+        </div>
+        <span className="control-row__hint">How fast everything moves and animates.</span>
         <input
           type="range"
           min={0.25}
@@ -96,10 +155,10 @@ export function DisplayTab({ event }: { event: EventDetail }) {
           aria-label="overall speed"
           onChange={(e) => update({ ...config, speed: Number(e.target.value) })}
         />
-      </label>
+      </div>
 
       <label>
-        Max on canvas
+        Max photos on screen at once
         <input
           type="number"
           min={1}
@@ -114,7 +173,10 @@ export function DisplayTab({ event }: { event: EventDetail }) {
       </label>
 
       <fieldset>
-        <legend>Dwell timeout</legend>
+        <legend>Auto-rotate photos</legend>
+        <span className="field-hint">
+          When on, each photo leaves after a while so newer ones get screen time.
+        </span>
         <label>
           Dwell timeout enabled
           <input
@@ -128,32 +190,32 @@ export function DisplayTab({ event }: { event: EventDetail }) {
         {config.dwell.enabled && (
           <>
             <label>
-              Dwell duration (ms)
+              Time on screen (seconds)
               <input
                 type="number"
-                min={1000}
-                step={1000}
-                value={config.dwell.durationMs}
+                min={1}
+                step={1}
+                value={Math.round(config.dwell.durationMs / 1000)}
                 aria-label="dwell duration"
                 onChange={(e) => {
                   const n = Number(e.target.value);
                   if (!Number.isNaN(n))
-                    update({ ...config, dwell: { ...config.dwell, durationMs: n } });
+                    update({ ...config, dwell: { ...config.dwell, durationMs: n * 1000 } });
                 }}
               />
             </label>
             <label>
-              Dwell variance (ms)
+              Random variation (seconds)
               <input
                 type="number"
                 min={0}
-                step={1000}
-                value={config.dwell.varianceMs}
+                step={1}
+                value={Math.round(config.dwell.varianceMs / 1000)}
                 aria-label="dwell variance"
                 onChange={(e) => {
                   const n = Number(e.target.value);
                   if (!Number.isNaN(n))
-                    update({ ...config, dwell: { ...config.dwell, varianceMs: n } });
+                    update({ ...config, dwell: { ...config.dwell, varianceMs: n * 1000 } });
                 }}
               />
             </label>
@@ -162,53 +224,43 @@ export function DisplayTab({ event }: { event: EventDetail }) {
       </fieldset>
 
       <fieldset>
-        <legend>Enter-animation weights</legend>
+        <legend>How photos appear</legend>
+        <span className="field-hint">Higher = that entrance is picked more often.</span>
         {ENTER_ANIMS.map((a) => (
-          <label key={a}>
-            {a}
-            <input
-              type="range"
-              min={0}
-              max={10}
-              step={1}
-              value={config.enterWeights[a]}
-              aria-label={`enter weight ${a}`}
-              onChange={(e) =>
-                update({
-                  ...config,
-                  enterWeights: { ...config.enterWeights, [a]: Number(e.target.value) },
-                })
-              }
-            />
-          </label>
+          <WeightRow
+            key={a}
+            info={ENTER_INFO[a]}
+            value={config.enterWeights[a]}
+            ariaLabel={`enter weight ${a}`}
+            onChange={(n) =>
+              update({ ...config, enterWeights: { ...config.enterWeights, [a]: n } })
+            }
+          />
         ))}
       </fieldset>
 
       <fieldset>
-        <legend>Leave-animation weights</legend>
+        <legend>How photos leave</legend>
+        <span className="field-hint">Higher = that exit is picked more often.</span>
         {LEAVE_ANIMS.map((a) => (
-          <label key={a}>
-            {a}
-            <input
-              type="range"
-              min={0}
-              max={10}
-              step={1}
-              value={config.leaveWeights[a]}
-              aria-label={`leave weight ${a}`}
-              onChange={(e) =>
-                update({
-                  ...config,
-                  leaveWeights: { ...config.leaveWeights, [a]: Number(e.target.value) },
-                })
-              }
-            />
-          </label>
+          <WeightRow
+            key={a}
+            info={LEAVE_INFO[a]}
+            value={config.leaveWeights[a]}
+            ariaLabel={`leave weight ${a}`}
+            onChange={(n) =>
+              update({ ...config, leaveWeights: { ...config.leaveWeights, [a]: n } })
+            }
+          />
         ))}
       </fieldset>
 
-      <label>
-        Base size
+      <div className="control-row">
+        <div className="control-row__head">
+          <span className="control-row__name">Photo size</span>
+          <span className="control-row__value">{config.baseSize}px</span>
+        </div>
+        <span className="control-row__hint">Baseline size of each photo on the big screen.</span>
         <input
           type="range"
           min={80}
@@ -218,10 +270,14 @@ export function DisplayTab({ event }: { event: EventDetail }) {
           aria-label="base size"
           onChange={(e) => update({ ...config, baseSize: Number(e.target.value) })}
         />
-      </label>
+      </div>
 
-      <label>
-        Size variance
+      <div className="control-row">
+        <div className="control-row__head">
+          <span className="control-row__name">Size variety</span>
+          <span className="control-row__value">{Math.round(config.sizeVariance * 100)}%</span>
+        </div>
+        <span className="control-row__hint">How much photo sizes vary from each other.</span>
         <input
           type="range"
           min={0}
@@ -231,7 +287,7 @@ export function DisplayTab({ event }: { event: EventDetail }) {
           aria-label="size variance"
           onChange={(e) => update({ ...config, sizeVariance: Number(e.target.value) })}
         />
-      </label>
+      </div>
     </div>
   );
 }
