@@ -40,6 +40,34 @@ describe('public events read', () => {
     expect(res.body).not.toHaveProperty('id'); // PublicEvent shape, no internal id
   });
 
+  it('GET /active returns null when no event is active', async () => {
+    const { app } = ctx();
+    const res = await request(app).get('/api/events/active');
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+  });
+
+  it('GET /active returns the active event (no auth) with PublicEvent shape', async () => {
+    const { app } = ctx();
+    const e = await createEvent(app); // create activates it
+    const res = await request(app).get('/api/events/active');
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(e.code);
+    expect(res.body.name).toBe('Public E');
+    expect(res.body.theme.id).toBe(DEFAULT_THEME_ID);
+    expect(res.body.motionConfig).toBeTruthy();
+    expect(res.body).not.toHaveProperty('id'); // PublicEvent shape, no internal id
+  });
+
+  it('GET /active follows the most recently activated event', async () => {
+    const { app } = ctx();
+    await createEvent(app); // first event, becomes active
+    const second = await createEvent(app); // activating the second pauses the first
+    const res = await request(app).get('/api/events/active');
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(second.code);
+  });
+
   it('GET by-code 404 for unknown code', async () => {
     const { app } = ctx();
     const res = await request(app).get('/api/events/by-code/zzzzzz');

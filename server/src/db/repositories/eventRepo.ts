@@ -6,6 +6,8 @@ export interface EventRepo {
   list(): EventSummary[];
   getById(id: string): EventDetail | undefined;
   getByCode(code: string): EventDetail | undefined;
+  /** The single currently-active event (is_active = 1), or undefined if none. */
+  getActive(): EventDetail | undefined;
   create(input: { name: string; code: string; themeId: string; motionConfig: MotionConfig }): EventDetail;
   activate(id: string): void;
   setUploadEnabled(id: string, enabled: boolean): void;
@@ -58,6 +60,7 @@ function rowToDetail(row: EventRow): EventDetail {
 export function makeEventRepo(db: Db): EventRepo {
   const selById = db.prepare(`${SELECT_DETAIL} WHERE e.id = ?`);
   const selByCode = db.prepare(`${SELECT_DETAIL} WHERE e.code = ?`);
+  const selActive = db.prepare(`${SELECT_DETAIL} WHERE e.is_active = 1 LIMIT 1`);
   // rowid DESC is a monotonic insertion-order tiebreaker so same-millisecond
   // created_at values still sort newest-first deterministically.
   const selAll = db.prepare(`${SELECT_DETAIL} ORDER BY e.created_at DESC, e.rowid DESC`);
@@ -80,6 +83,11 @@ export function makeEventRepo(db: Db): EventRepo {
 
   function getByCode(code: string): EventDetail | undefined {
     const row = selByCode.get(code) as EventRow | undefined;
+    return row ? rowToDetail(row) : undefined;
+  }
+
+  function getActive(): EventDetail | undefined {
+    const row = selActive.get() as EventRow | undefined;
     return row ? rowToDetail(row) : undefined;
   }
 
@@ -123,7 +131,7 @@ export function makeEventRepo(db: Db): EventRepo {
   }
 
   return {
-    list, getById, getByCode, create, activate,
+    list, getById, getByCode, getActive, create, activate,
     setUploadEnabled, end, setMotionConfig, setTheme, codeExists,
   };
 }

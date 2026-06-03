@@ -34,8 +34,31 @@ export function toPublicPhoto(row: PhotoAdmin): Photo {
   return pub;
 }
 
+/** Build the public-facing event view, resolving the theme (falling back to default). */
+function toPublicEvent(event: EventDetail, themeRepo: ThemeRepo): PublicEvent {
+  const theme = themeRepo.getById(event.themeId) ?? themeRepo.getById(DEFAULT_THEME_ID)!;
+  return {
+    code: event.code,
+    name: event.name,
+    status: event.status,
+    uploadEnabled: event.uploadEnabled,
+    theme,
+    motionConfig: event.motionConfig,
+  };
+}
+
 export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
   const router = Router();
+
+  // The currently-active event (for the landing page), or `null` when none is
+  // active. Returns 200 with a null body rather than 404 so the client can treat
+  // "no active event" as a normal empty state instead of an error.
+  router.get('/active', (req, res) => {
+    const eventRepo = req.app.get('eventRepo') as EventRepo;
+    const themeRepo = req.app.get('themeRepo') as ThemeRepo;
+    const event = eventRepo.getActive();
+    res.json(event ? toPublicEvent(event, themeRepo) : null);
+  });
 
   router.get('/by-code/:code', (req, res) => {
     const eventRepo = req.app.get('eventRepo') as EventRepo;
@@ -45,16 +68,7 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
       res.status(404).json({ error: 'not_found' });
       return;
     }
-    const theme = themeRepo.getById(event.themeId) ?? themeRepo.getById(DEFAULT_THEME_ID)!;
-    const publicEvent: PublicEvent = {
-      code: event.code,
-      name: event.name,
-      status: event.status,
-      uploadEnabled: event.uploadEnabled,
-      theme,
-      motionConfig: event.motionConfig,
-    };
-    res.json(publicEvent);
+    res.json(toPublicEvent(event, themeRepo));
   });
 
   router.get('/by-code/:code/photos', (req, res) => {

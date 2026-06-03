@@ -30,6 +30,11 @@ export function getPublicEvent(code: string): Promise<PublicEvent> {
   return getJson<PublicEvent>(`/api/events/by-code/${encodeURIComponent(code)}`);
 }
 
+/** The currently-active event for the landing page, or null when none is active. */
+export function getActiveEvent(): Promise<PublicEvent | null> {
+  return getJson<PublicEvent | null>('/api/events/active');
+}
+
 export function getPublicPhotos(code: string): Promise<Photo[]> {
   return getJson<Photo[]>(`/api/events/by-code/${encodeURIComponent(code)}/photos`);
 }
