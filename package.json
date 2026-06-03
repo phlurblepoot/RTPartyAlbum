@@ -1,0 +1,19 @@
+{
+  "name": "rtpartyalbum",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build -w @rtpa/shared && npm run build -w @rtpa/server",
+    "test": "npm test --workspaces --if-present",
+    "dev:server": "npm run dev -w @rtpa/server"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

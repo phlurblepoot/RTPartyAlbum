@@ -1,0 +1,10 @@
+{
+  "name": "@rtpa/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"web build placeholder (implemented in Plan 4+)\"",
+    "test": "echo \"web tests placeholder (implemented in Plan 4+)\""
+  }
+}
