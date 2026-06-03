@@ -1,5 +1,6 @@
 import type { Db } from './connection.js';
 import * as init001 from './migrations/001_init.js';
+import * as priority002 from './migrations/002_priority.js';
 
 interface Migration {
   id: string;
@@ -8,6 +9,7 @@ interface Migration {
 
 const MIGRATIONS: Migration[] = [
   { id: init001.id, up: init001.up },
+  { id: priority002.id, up: priority002.up },
 ];
 
 function ensureMigrationsTable(db: Db): void {

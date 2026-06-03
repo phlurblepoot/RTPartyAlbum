@@ -80,6 +80,7 @@ export interface Photo {
   durationMs: number | null;
   createdAt: string;       // ISO 8601
   isHidden: boolean;
+  isPriority: boolean;     // host-favorited: shown on the canvas more often
   displayUrl: string;      // image jpeg OR processed mp4
   thumbUrl: string;        // jpeg poster/thumbnail
 }
@@ -94,6 +95,7 @@ export interface ServerToClientEvents {
   'photo:added': (photo: Photo) => void;
   'photo:hidden': (payload: { id: string }) => void;
   'photo:deleted': (payload: { id: string }) => void;
+  'photo:updated': (photo: Photo) => void;
   'settings:updated': (motionConfig: MotionConfig) => void;
   'theme:updated': (theme: Theme) => void;
 }

@@ -63,6 +63,8 @@ export const adminApi = {
   // Photos
   listPhotos: (eventId: string) => getJson<PhotoAdmin[]>(`/api/admin/events/${eventId}/photos`),
   hidePhoto: (id: string, hidden: boolean) => postVoid(`/api/admin/photos/${id}/hide`, { hidden }),
+  setPhotoPriority: (id: string, priority: boolean) =>
+    postVoid(`/api/admin/photos/${id}/priority`, { priority }),
   deletePhoto: (id: string) => del(`/api/admin/photos/${id}`),
 
   // Themes

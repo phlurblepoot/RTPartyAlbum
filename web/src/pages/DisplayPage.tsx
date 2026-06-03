@@ -8,6 +8,7 @@ import {
   createEngineState,
   enqueueUpload,
   removePhoto,
+  updatePhoto,
   tick,
   type EngineState,
   type Rng,
@@ -103,6 +104,7 @@ export function DisplayPage({
     const onAdded = (photo: Photo) => setState((s) => (s ? enqueueUpload(s, photo) : s));
     const onHidden = (p: { id: string }) => setState((s) => (s ? removePhoto(s, p.id) : s));
     const onDeleted = (p: { id: string }) => setState((s) => (s ? removePhoto(s, p.id) : s));
+    const onUpdated = (photo: Photo) => setState((s) => (s ? updatePhoto(s, photo) : s));
     const onSettings = (motionConfig: MotionConfig) =>
       setState((s) => (s ? { ...s, config: motionConfig } : s));
     const onTheme = (t: Theme) => setTheme(t);
@@ -110,6 +112,7 @@ export function DisplayPage({
     socket.on('photo:added', onAdded);
     socket.on('photo:hidden', onHidden);
     socket.on('photo:deleted', onDeleted);
+    socket.on('photo:updated', onUpdated);
     socket.on('settings:updated', onSettings);
     socket.on('theme:updated', onTheme);
 
@@ -117,6 +120,7 @@ export function DisplayPage({
       socket.off('photo:added', onAdded);
       socket.off('photo:hidden', onHidden);
       socket.off('photo:deleted', onDeleted);
+      socket.off('photo:updated', onUpdated);
       socket.off('settings:updated', onSettings);
       socket.off('theme:updated', onTheme);
     };

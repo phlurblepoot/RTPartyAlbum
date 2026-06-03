@@ -28,14 +28,25 @@ describe('migrate', () => {
     db.close();
   });
 
-  it('is idempotent — running twice is safe and records one applied migration', () => {
+  it('is idempotent — running twice records each migration exactly once', () => {
     const db = openMemoryDb();
     migrate(db);
     migrate(db);
     const applied = db.prepare('SELECT id FROM migrations ORDER BY id').all() as { id: string }[];
-    expect(applied.map((r) => r.id)).toEqual(['001_init']);
+    expect(applied.map((r) => r.id)).toEqual(['001_init', '002_priority']);
     // tables still intact
     expect(tableNames(db)).toContain('photos');
+    db.close();
+  });
+
+  it('adds the photos.is_priority column (migration 002)', () => {
+    const db = openMemoryDb();
+    migrate(db);
+    const cols = (db.prepare('PRAGMA table_info(photos)').all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    expect(cols).toContain('is_priority');
+    expect(indexNames(db)).toContain('idx_photos_event_priority');
     db.close();
   });
 

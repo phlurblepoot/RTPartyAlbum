@@ -12,6 +12,7 @@ export interface RealtimeEmitters {
   emitPhotoAdded(code: string, photo: Photo): void;
   emitPhotoHidden(code: string, id: string): void;
   emitPhotoDeleted(code: string, id: string): void;
+  emitPhotoUpdated(code: string, photo: Photo): void;
   emitSettingsUpdated(code: string, motionConfig: MotionConfig): void;
   emitThemeUpdated(code: string, theme: Theme): void;
 }
@@ -43,6 +44,9 @@ export function initRealtime(httpServer: HttpServer): RealtimeEmitters {
     },
     emitPhotoDeleted(code, id) {
       io.to(room(code)).emit('photo:deleted', { id });
+    },
+    emitPhotoUpdated(code, photo) {
+      io.to(room(code)).emit('photo:updated', photo);
     },
     emitSettingsUpdated(code, motionConfig) {
       io.to(room(code)).emit('settings:updated', motionConfig);

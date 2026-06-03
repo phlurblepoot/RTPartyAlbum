@@ -135,6 +135,62 @@ describe('admin hide/delete', () => {
     expect(res.status).toBe(404);
   });
 
+  it('priority toggle persists is_priority and broadcasts photo:updated (no device fields)', async () => {
+    const dataDir = await makeTmpDir();
+    const uploadsDir = await makeTmpDir();
+    dirs.push(dataDir, uploadsDir);
+    const { app, emitted, repos, seedActiveEvent } = await createTestApp({ dataDir, uploadsDir });
+    await seedActiveEvent({ code: 'pr1', uploadEnabled: true });
+    const photo = await uploadOne(app, 'pr1');
+    const agent = await loginAdmin(app);
+
+    expect(repos.photoRepo.getById(photo.id)!.isPriority).toBe(false);
+
+    const res = await agent.post(`/api/admin/photos/${photo.id}/priority`).send({ priority: true });
+    expect(res.status).toBe(204);
+    expect(repos.photoRepo.getById(photo.id)!.isPriority).toBe(true);
+
+    const updated = emitted.filter((e) => e.type === 'photo:updated');
+    expect(updated.length).toBe(1);
+    expect((updated[0].payload as any).id).toBe(photo.id);
+    expect((updated[0].payload as any).isPriority).toBe(true);
+    // public photo shape — no device fields
+    expect((updated[0].payload as any).deviceId).toBeUndefined();
+
+    // toggling back off works too
+    const off = await agent.post(`/api/admin/photos/${photo.id}/priority`).send({ priority: false });
+    expect(off.status).toBe(204);
+    expect(repos.photoRepo.getById(photo.id)!.isPriority).toBe(false);
+  });
+
+  it('priority rejects a non-boolean field and a missing photo', async () => {
+    const dataDir = await makeTmpDir();
+    const uploadsDir = await makeTmpDir();
+    dirs.push(dataDir, uploadsDir);
+    const { app, repos, seedActiveEvent } = await createTestApp({ dataDir, uploadsDir });
+    await seedActiveEvent({ code: 'pr2', uploadEnabled: true });
+    const photo = await uploadOne(app, 'pr2');
+    const agent = await loginAdmin(app);
+
+    const bad = await agent.post(`/api/admin/photos/${photo.id}/priority`).send({ priority: 'yes' });
+    expect(bad.status).toBe(400);
+    expect(repos.photoRepo.getById(photo.id)!.isPriority).toBe(false);
+
+    const missing = await agent.post('/api/admin/photos/nope/priority').send({ priority: true });
+    expect(missing.status).toBe(404);
+  });
+
+  it('priority returns 401 without auth cookie', async () => {
+    const dataDir = await makeTmpDir();
+    const uploadsDir = await makeTmpDir();
+    dirs.push(dataDir, uploadsDir);
+    const { app, seedActiveEvent } = await createTestApp({ dataDir, uploadsDir });
+    await seedActiveEvent({ code: 'pr3', uploadEnabled: true });
+    const photo = await uploadOne(app, 'pr3');
+    const res = await request(app).post(`/api/admin/photos/${photo.id}/priority`).send({ priority: true });
+    expect(res.status).toBe(401);
+  });
+
   it('hide rejects a non-boolean hidden field without mutating or emitting', async () => {
     const dataDir = await makeTmpDir();
     const uploadsDir = await makeTmpDir();

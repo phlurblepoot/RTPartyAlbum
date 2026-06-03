@@ -32,6 +32,7 @@ export interface PhotoRepo {
   /** Return the raw filesystem paths for a photo (for deletion). */
   getPaths(id: string): PhotoPaths | undefined;
   setHidden(id: string, hidden: boolean): void;
+  setPriority(id: string, priority: boolean): void;
   remove(id: string): void;
   countForEvent(eventId: string): number;
 }
@@ -49,6 +50,7 @@ interface PhotoRow {
   duration_ms: number | null;
   created_at: string;
   is_hidden: number;
+  is_priority: number;
   device_id: string;
   user_agent: string;
   ip_address: string;
@@ -73,6 +75,7 @@ function rowToPhoto(row: PhotoRow): Photo {
     durationMs: row.duration_ms,
     createdAt: row.created_at,
     isHidden: row.is_hidden === 1,
+    isPriority: row.is_priority === 1,
     displayUrl: displayUrlOf(row.display_path),
     thumbUrl: thumbUrlOf(row.thumb_path),
   };
@@ -90,6 +93,10 @@ function rowToPhotoAdmin(row: PhotoRow): PhotoAdmin {
 const COLS = `id, event_id, uploader_name, file_path, display_path, thumb_path,
   media_type, width, height, duration_ms, created_at, is_hidden,
   device_id, user_agent, ip_address`;
+// Read column list = insert COLS plus the migration-added is_priority. Kept
+// separate so the positional INSERT (which omits is_priority, relying on its
+// DDL default) is unaffected.
+const SELECT_COLS = `${COLS}, is_priority`;
 
 export function makePhotoRepo(db: Db): PhotoRepo {
   const insert = db.prepare(
@@ -98,15 +105,16 @@ export function makePhotoRepo(db: Db): PhotoRepo {
              @media_type, @width, @height, @duration_ms, @created_at, 0,
              @device_id, @user_agent, @ip_address)`,
   );
-  const selById = db.prepare(`SELECT ${COLS} FROM photos WHERE id = ?`);
+  const selById = db.prepare(`SELECT ${SELECT_COLS} FROM photos WHERE id = ?`);
   // rowid DESC is a monotonic insertion-order tiebreaker so same-millisecond
   // created_at values still sort newest-first deterministically. photos has a
   // TEXT PRIMARY KEY, so SQLite does NOT alias id->rowid; reference rowid explicitly.
-  const selAdmin = db.prepare(`SELECT ${COLS} FROM photos WHERE event_id = ? ORDER BY created_at DESC, rowid DESC`);
+  const selAdmin = db.prepare(`SELECT ${SELECT_COLS} FROM photos WHERE event_id = ? ORDER BY created_at DESC, rowid DESC`);
   const selPublic = db.prepare(
-    `SELECT ${COLS} FROM photos WHERE event_id = ? AND is_hidden = 0 ORDER BY created_at DESC, rowid DESC`,
+    `SELECT ${SELECT_COLS} FROM photos WHERE event_id = ? AND is_hidden = 0 ORDER BY created_at DESC, rowid DESC`,
   );
   const setHiddenStmt = db.prepare(`UPDATE photos SET is_hidden = ? WHERE id = ?`);
+  const setPriorityStmt = db.prepare(`UPDATE photos SET is_priority = ? WHERE id = ?`);
   const del = db.prepare(`DELETE FROM photos WHERE id = ?`);
   const countStmt = db.prepare(`SELECT COUNT(*) AS n FROM photos WHERE event_id = ?`);
 
@@ -149,6 +157,10 @@ export function makePhotoRepo(db: Db): PhotoRepo {
     setHiddenStmt.run(hidden ? 1 : 0, id);
   }
 
+  function setPriority(id: string, priority: boolean): void {
+    setPriorityStmt.run(priority ? 1 : 0, id);
+  }
+
   const selPaths = db.prepare(`SELECT file_path, display_path, thumb_path FROM photos WHERE id = ?`);
 
   function getPaths(id: string): PhotoPaths | undefined {
@@ -172,5 +184,5 @@ export function makePhotoRepo(db: Db): PhotoRepo {
     return row.n;
   }
 
-  return { create, listForEventAdmin, listForEventPublic, getById, getPaths, setHidden, remove, countForEvent };
+  return { create, listForEventAdmin, listForEventPublic, getById, getPaths, setHidden, setPriority, remove, countForEvent };
 }

@@ -70,6 +70,9 @@ function makeSpyRealtime(emitted: EmittedEvent[]): RealtimeEmitters {
     emitPhotoDeleted(code: string, id: string) {
       emitted.push({ type: 'photo:deleted', payload: { id } });
     },
+    emitPhotoUpdated(code: string, photo: Photo) {
+      emitted.push({ type: 'photo:updated', payload: photo });
+    },
     emitSettingsUpdated(code: string, motionConfig) {
       emitted.push({ type: 'settings:updated', payload: motionConfig });
     },

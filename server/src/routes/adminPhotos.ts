@@ -60,6 +60,37 @@ export function makeAdminPhotosRouter(): Router {
     res.status(204).end();
   });
 
+  router.post('/photos/:id/priority', (req, res) => {
+    const photoRepo = req.app.get('photoRepo') as PhotoRepo;
+    const eventRepo = req.app.get('eventRepo') as EventRepo;
+    const realtime = req.app.get('realtime') as RealtimeEmitters;
+
+    // Require an explicit boolean (same contract as /hide) — never silently coerce.
+    if (typeof req.body?.priority !== 'boolean') {
+      res.status(400).json({ error: 'invalid_body' });
+      return;
+    }
+    const priority = req.body.priority;
+
+    const photo = photoRepo.getById(req.params.id);
+    if (!photo) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+
+    photoRepo.setPriority(photo.id, priority);
+
+    // Broadcast the updated public photo so live displays re-weight admission
+    // immediately (no reload needed).
+    const event = eventRepo.getById(photo.eventId);
+    const fresh = photoRepo.getById(photo.id);
+    if (event && fresh) {
+      realtime.emitPhotoUpdated(event.code, toPublicPhoto(fresh));
+    }
+
+    res.status(204).end();
+  });
+
   router.delete('/photos/:id', async (req, res, next) => {
     const photoRepo = req.app.get('photoRepo') as PhotoRepo;
     const eventRepo = req.app.get('eventRepo') as EventRepo;

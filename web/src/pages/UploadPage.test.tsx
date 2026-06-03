@@ -119,6 +119,7 @@ describe('UploadPage', () => {
       durationMs: null,
       createdAt: new Date().toISOString(),
       isHidden: false,
+      isPriority: false,
       displayUrl: '/media/display/p1.jpg',
       thumbUrl: '/media/thumb/p1.jpg',
     };

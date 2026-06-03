@@ -12,6 +12,7 @@ export function makePhoto(id: string, overrides: Partial<Photo> = {}): Photo {
     durationMs: null,
     createdAt: '2026-06-02T00:00:00.000Z',
     isHidden: false,
+    isPriority: false,
     displayUrl: `/media/display/${id}.jpg`,
     thumbUrl: `/media/thumb/${id}.jpg`,
     ...overrides,

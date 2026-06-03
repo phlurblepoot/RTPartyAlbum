@@ -22,7 +22,7 @@ const event: EventDetail = {
 function mkPhoto(id: string, createdAt: string, name = 'Guest'): PhotoAdmin {
   return {
     id, eventId: 'e1', uploaderName: name, mediaType: 'image', width: 800, height: 600,
-    durationMs: null, createdAt, isHidden: false,
+    durationMs: null, createdAt, isHidden: false, isPriority: false,
     displayUrl: `/media/display/${id}.jpg`, thumbUrl: `/media/thumb/${id}.jpg`,
     deviceId: `dev-${id}`, userAgent: 'UA', ipAddress: '1.2.3.4',
   };
@@ -62,7 +62,7 @@ describe('AlbumTab', () => {
     await screen.findByText('Bob');
     const incoming: Photo = {
       id: 'p3', eventId: 'e1', uploaderName: 'Cara', mediaType: 'image', width: 1, height: 1,
-      durationMs: null, createdAt: '2026-06-01T12:30:00.000Z', isHidden: false,
+      durationMs: null, createdAt: '2026-06-01T12:30:00.000Z', isHidden: false, isPriority: false,
       displayUrl: '/media/display/p3.jpg', thumbUrl: '/media/thumb/p3.jpg',
     };
     act(() => {

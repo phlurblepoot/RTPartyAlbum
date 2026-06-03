@@ -27,6 +27,7 @@ export const noopRealtime: RealtimeEmitters = {
   emitPhotoAdded() {},
   emitPhotoHidden() {},
   emitPhotoDeleted() {},
+  emitPhotoUpdated() {},
   emitSettingsUpdated() {},
   emitThemeUpdated() {},
 };

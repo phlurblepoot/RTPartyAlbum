@@ -136,6 +136,16 @@ export function tick(state: EngineState, now: number, rng: Rng): EngineState {
   const onCanvasIds = () => new Set(onCanvas.map((t) => t.photo.id));
   const nonLeaving = () => onCanvas.filter((t) => !t.leaving);
 
+  // Pick which on-canvas tile to evict: prefer the oldest NON-priority tile so
+  // host-favorited photos stay on screen longer. Only evict a priority tile if
+  // every candidate is priority.
+  const oldestEvictable = (): Tile | undefined => {
+    const candidates = nonLeaving();
+    if (candidates.length === 0) return undefined;
+    const byAge = [...candidates].sort((a, b) => a.bornAt - b.bornAt);
+    return byAge.find((t) => !t.photo.isPriority) ?? byAge[0];
+  };
+
   // helper: distinct album photos not currently on canvas (any state) or queued
   const distinctAvailable = () => {
     const present = onCanvasIds();
@@ -155,13 +165,14 @@ export function tick(state: EngineState, now: number, rng: Rng): EngineState {
   //    Idle album cycling never force-evicts here; it rotates only via dwell expiry,
   //    filling slots that natural rotation frees (avoids unbounded churn / growth).
   while (nonLeaving().length > config.maxOnCanvas) {
-    const oldest = [...nonLeaving()].sort((a, b) => a.bornAt - b.bornAt)[0];
+    const oldest = oldestEvictable();
+    if (!oldest) break;
     const r = markLeaving(onCanvas, leftAt, oldest, now);
     onCanvas = r.onCanvas;
     leftAt = r.leftAt;
   }
   if (queuedWaiting() && nonLeaving().length >= config.maxOnCanvas) {
-    const oldest = [...nonLeaving()].sort((a, b) => a.bornAt - b.bornAt)[0];
+    const oldest = oldestEvictable();
     if (oldest) {
       const r = markLeaving(onCanvas, leftAt, oldest, now);
       onCanvas = r.onCanvas;
@@ -192,6 +203,11 @@ export function tick(state: EngineState, now: number, rng: Rng): EngineState {
     const candidates = distinctAvailable();
     if (candidates.length === 0) break;
     candidates.sort((a, b) => {
+      // Host-favorited photos are admitted first so they appear on the canvas
+      // more often (and, having cycled out, return soonest).
+      const pa = a.isPriority ? 1 : 0;
+      const pb = b.isPriority ? 1 : 0;
+      if (pa !== pb) return pb - pa; // priority first
       const la = lastShownAt[a.id] ?? -Infinity;
       const lb = lastShownAt[b.id] ?? -Infinity;
       if (la !== lb) return la - lb; // least-recently-shown first
@@ -201,6 +217,21 @@ export function tick(state: EngineState, now: number, rng: Rng): EngineState {
   }
 
   return { ...state, onCanvas, queue, leftAt, lastShownAt };
+}
+
+/**
+ * Apply a server-side photo update (e.g. a priority/favorite toggle) to every
+ * place the photo lives: the album pool, the pending queue, and any on-canvas
+ * tile's `photo`. Unknown photos are ignored. Re-weighting then takes effect on
+ * the next tick (priority photos cycle in sooner and are evicted later).
+ */
+export function updatePhoto(state: EngineState, photo: Photo): EngineState {
+  const album = state.album.map((p) => (p.id === photo.id ? photo : p));
+  const queue = state.queue.map((p) => (p.id === photo.id ? photo : p));
+  const onCanvas = state.onCanvas.map((t) =>
+    t.photo.id === photo.id ? { ...t, photo } : t,
+  );
+  return { ...state, album, queue, onCanvas };
 }
 
 export function removePhoto(state: EngineState, photoId: string): EngineState {
