@@ -179,7 +179,7 @@ export default function UploadPage() {
             <input
               type="file"
               aria-label="Add photos / videos"
-              accept="image/*,video/*"
+              accept="image/*,video/*,.heic,.heif,.avif"
               multiple
               className="rtpa-upload__file-input"
               disabled={uploading}

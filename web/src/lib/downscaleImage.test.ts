@@ -66,12 +66,20 @@ describe('downscaleImage', () => {
 
   it('resizes large images and returns a new jpeg File preserving the basename', async () => {
     nextImageDims = { width: 4000, height: 3000 };
-    const img = new File(['i'], 'big.heic', { type: 'image/heic' });
+    const img = new File(['i'], 'big.jpg', { type: 'image/jpeg' });
     const out = await downscaleImage(img, 1600, 0.85);
     expect(out).not.toBe(img);
     expect(out.type).toBe('image/jpeg');
     expect(out.name).toBe('big.jpg');
     expect(HTMLCanvasElement.prototype.toBlob).toHaveBeenCalled();
     expect(URL.revokeObjectURL).toHaveBeenCalled();
+  });
+
+  it('passes HEIC through unchanged (browsers cannot canvas-decode it; server converts)', async () => {
+    nextImageDims = { width: 4000, height: 3000 };
+    const heic = new File(['i'], 'IMG_1234.HEIC', { type: '' });
+    const out = await downscaleImage(heic, 1600, 0.85);
+    expect(out).toBe(heic); // original passed straight through to upload
+    expect(HTMLCanvasElement.prototype.toBlob).not.toHaveBeenCalled();
   });
 });

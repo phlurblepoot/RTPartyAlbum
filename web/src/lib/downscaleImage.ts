@@ -2,6 +2,13 @@ function isImage(file: File): boolean {
   return file.type.startsWith('image/');
 }
 
+// Browsers can't decode HEIC/HEIF in a <canvas>, so attempting to downscale them
+// just fails (and we'd fall back to the original anyway). Skip straight to
+// uploading the original — the server normalizes HEIC to JPEG via sharp.
+function isBrowserUndecodable(file: File): boolean {
+  return /\.(heic|heif)$/i.test(file.name) || /image\/hei[cf]/i.test(file.type);
+}
+
 function jpegName(name: string): string {
   const dot = name.lastIndexOf('.');
   const base = dot === -1 ? name : name.slice(0, dot);
@@ -28,7 +35,7 @@ export async function downscaleImage(
   maxEdge = 1600,
   quality = 0.85,
 ): Promise<File> {
-  if (!isImage(file)) return file;
+  if (!isImage(file) || isBrowserUndecodable(file)) return file;
 
   const url = URL.createObjectURL(file);
   try {

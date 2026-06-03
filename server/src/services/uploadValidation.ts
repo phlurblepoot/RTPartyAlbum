@@ -54,12 +54,22 @@ function detectFromMagic(buf: Buffer): Detected {
   ) {
     return { mediaType: 'image', ext: '.webp', mime: 'image/webp' };
   }
-  // ISO-BMFF 'ftyp' box at bytes 4-7 -> mp4/mov/heic share this container.
+  // ISO-BMFF 'ftyp' box at bytes 4-7 -> mp4/mov/heic/avif share this container.
   if (buf.toString('ascii', 4, 8) === 'ftyp') {
     const brand = buf.toString('ascii', 8, 12);
-    // HEIC/HEIF brands -> treated as image, normalized to jpeg later by sharp.
-    if (brand === 'heic' || brand === 'heix' || brand === 'mif1' || brand === 'heim') {
+    // HEIF-family still-image brands -> treated as image, normalized to jpeg by
+    // sharp. iPhones emit 'heic'/'heix' (single) and 'mif1'/'msf1' (Live/sequence);
+    // any 'hei*' brand is HEIC. AVIF ('avif'/'avis') is the same container family.
+    if (
+      brand.startsWith('hei') ||
+      brand === 'mif1' ||
+      brand === 'msf1' ||
+      brand === 'miaf'
+    ) {
       return { mediaType: 'image', ext: '.heic', mime: 'image/heic' };
+    }
+    if (brand === 'avif' || brand === 'avis') {
+      return { mediaType: 'image', ext: '.avif', mime: 'image/avif' };
     }
     // QuickTime mov brand 'qt  '
     if (brand === 'qt  ') {
@@ -92,9 +102,16 @@ export function validateUpload(input: ValidateUploadInput): ValidateUploadResult
     throw new UploadValidationError('unsupported or unrecognized media type', 'unsupported_type');
   }
 
-  // The declared mime family must match what the bytes say.
-  const declaredFamily = mimetype.split('/')[0];
-  if (declaredFamily !== detected.mediaType) {
+  // The declared mime family must match what the bytes say — UNLESS the client
+  // didn't really declare one. Browsers commonly send an empty type or
+  // `application/octet-stream` for HEIC/HEIF (they don't recognize the extension),
+  // so in that case we trust the magic bytes — which already identified a real
+  // image/video — rather than rejecting a legitimate iPhone photo. A *specific*
+  // contradicting type (e.g. application/pdf on jpeg bytes) is still rejected.
+  const declared = (mimetype ?? '').toLowerCase();
+  const unspecified = declared === '' || declared === 'application/octet-stream';
+  const declaredFamily = declared.split('/')[0];
+  if (!unspecified && declaredFamily !== detected.mediaType) {
     throw new UploadValidationError(
       `declared type ${mimetype} does not match detected ${detected.mime}`,
       'unsupported_type',

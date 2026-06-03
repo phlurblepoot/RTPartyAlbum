@@ -20,6 +20,11 @@ const mp4Magic = Buffer.concat([
   Buffer.from('ftypmp42'),
 ]);
 const textMagic = Buffer.from('hello world this is not media');
+// ISO-BMFF 'ftyp' box with HEIC brand: bytes 4-7 == 'ftyp', brand 'heic'.
+const heicMagic = Buffer.concat([
+  Buffer.from([0x00, 0x00, 0x00, 0x18]),
+  Buffer.from('ftypheic'),
+]);
 
 function pad(buf: Buffer, size: number): Buffer {
   if (buf.length >= size) return buf.subarray(0, size);
@@ -101,6 +106,25 @@ describe('validateUpload', () => {
         limits,
       }),
     ).toThrow(UploadValidationError);
+  });
+
+  it('accepts a HEIC photo declared as image/heic', () => {
+    const r = validateUpload({
+      buffer: pad(heicMagic, 500),
+      mimetype: 'image/heic',
+      sizeBytes: 500,
+      limits,
+    });
+    expect(r.mediaType).toBe('image');
+    expect(r.ext).toBe('.heic');
+  });
+
+  it('accepts a HEIC photo the browser sent with no/unknown MIME (empty or octet-stream)', () => {
+    for (const mimetype of ['', 'application/octet-stream']) {
+      const r = validateUpload({ buffer: pad(heicMagic, 500), mimetype, sizeBytes: 500, limits });
+      expect(r.mediaType).toBe('image');
+      expect(r.ext).toBe('.heic');
+    }
   });
 
   it('rejects a disallowed mime type', () => {
