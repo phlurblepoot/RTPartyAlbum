@@ -17,11 +17,13 @@ describe('CanvasRenderer', () => {
     const els = container.querySelectorAll('[data-tile-id]');
     expect(els).toHaveLength(2);
     const first = els[0] as HTMLElement;
+    const size = Math.round(tiles[0].size);
     // width is the tile size in px
-    expect(first.style.width).toBe(`${Math.round(tiles[0].size)}px`);
-    // positioned with left/top as percentages
-    expect(first.style.left).toBe(`${tiles[0].x * 100}%`);
-    expect(first.style.top).toBe(`${tiles[0].y * 100}%`);
+    expect(first.style.width).toBe(`${size}px`);
+    // positioned within the safe band [0, canvas - size] so tiles near the
+    // far edges stay fully on-canvas (x/y are 0..1 normalized).
+    expect(first.style.left).toBe(`calc(${tiles[0].x} * (100% - ${size}px))`);
+    expect(first.style.top).toBe(`calc(${tiles[0].y} * (100% - ${size}px))`);
   });
 
   it('renders tile content (Tile component) inside each motion.div', () => {

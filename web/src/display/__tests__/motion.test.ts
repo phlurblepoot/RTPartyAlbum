@@ -3,34 +3,42 @@ import { motionPropsFor } from '../motion';
 
 const styles = ['drift', 'current', 'orbit', 'mosaic'] as const;
 
+// The returns are typed with framer-motion's union types (TargetAndTransition /
+// Transition); reading specific keyframe/timing fields in tests needs a loose view.
+const animateOf = (s: (typeof styles)[number], speed: number) =>
+  motionPropsFor(s, speed).animate as Record<string, unknown>;
+const transitionOf = (s: (typeof styles)[number], speed: number) =>
+  motionPropsFor(s, speed).transition as Record<string, unknown>;
+
 describe('motionPropsFor', () => {
   it('returns animate + transition with infinite repeat for every style', () => {
     for (const style of styles) {
-      const p = motionPropsFor(style, 1);
-      expect(p.animate).toBeTypeOf('object');
-      expect(p.transition).toBeTypeOf('object');
-      expect(p.transition.repeat).toBe(Infinity);
-      expect(p.transition.duration).toBeGreaterThan(0);
+      const animate = animateOf(style, 1);
+      const transition = transitionOf(style, 1);
+      expect(animate).toBeTypeOf('object');
+      expect(transition).toBeTypeOf('object');
+      expect(transition.repeat).toBe(Infinity);
+      expect(transition.duration as number).toBeGreaterThan(0);
     }
   });
 
   it('drift/current/mosaic animate x and/or y keyframes', () => {
-    expect(Array.isArray(motionPropsFor('drift', 1).animate.x)).toBe(true);
-    expect(Array.isArray(motionPropsFor('current', 1).animate.x)).toBe(true);
-    expect(Array.isArray(motionPropsFor('mosaic', 1).animate.y)).toBe(true);
+    expect(Array.isArray(animateOf('drift', 1).x)).toBe(true);
+    expect(Array.isArray(animateOf('current', 1).x)).toBe(true);
+    expect(Array.isArray(animateOf('mosaic', 1).y)).toBe(true);
   });
 
   it('orbit animates rotate over a full turn with x/y-matched cadence', () => {
-    const p = motionPropsFor('orbit', 1);
-    expect(p.animate.rotate).toEqual([0, 90, 180, 270, 360]);
+    const animate = animateOf('orbit', 1);
+    expect(animate.rotate).toEqual([0, 90, 180, 270, 360]);
     // rotate must share the x/y keyframe cadence so the tile traces a circle
-    expect((p.animate.rotate as number[]).length).toBe((p.animate.x as number[]).length);
-    expect((p.animate.rotate as number[]).length).toBe((p.animate.y as number[]).length);
+    expect((animate.rotate as number[]).length).toBe((animate.x as number[]).length);
+    expect((animate.rotate as number[]).length).toBe((animate.y as number[]).length);
   });
 
   it('scales duration inversely with speed', () => {
-    const slow = motionPropsFor('drift', 0.5).transition.duration;
-    const fast = motionPropsFor('drift', 2).transition.duration;
+    const slow = transitionOf('drift', 0.5).duration as number;
+    const fast = transitionOf('drift', 2).duration as number;
     expect(fast).toBeLessThan(slow);
   });
 });

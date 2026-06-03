@@ -1,8 +1,9 @@
+import type { TargetAndTransition, Transition } from 'framer-motion';
 import type { MotionStyle } from '@rtpa/shared';
 
 export interface MotionProps {
-  animate: Record<string, unknown>;
-  transition: { duration: number; repeat: number; repeatType: 'mirror' | 'loop'; ease: string };
+  animate: TargetAndTransition;
+  transition: Transition;
 }
 
 // Base durations (seconds) at speed 1; scaled inversely by speed.

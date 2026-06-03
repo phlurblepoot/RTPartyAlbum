@@ -1,12 +1,13 @@
+import type { Target, TargetAndTransition, Transition } from 'framer-motion';
 import type { EnterAnimation, LeaveAnimation } from '@rtpa/shared';
 
 export interface EnterVariant {
-  initial: Record<string, unknown>;
-  animate: Record<string, unknown>;
-  transition: Record<string, unknown>;
+  initial: Target;
+  animate: TargetAndTransition;
+  transition: Transition;
 }
 export interface LeaveVariant {
-  exit: Record<string, unknown>;
+  exit: TargetAndTransition;
 }
 
 export function enterVariant(key: EnterAnimation): EnterVariant {
