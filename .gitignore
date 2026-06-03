@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Runtime data (mounted volumes)
+/data/
+/uploads/
+
+# Env / secrets
+.env
+.env.*
+
+# Visual companion scratch
+.superpowers/
+
+# OMC state
+.omc/
+
+# OS / editor
+.DS_Store
+*.log
