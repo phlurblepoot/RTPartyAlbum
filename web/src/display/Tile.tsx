@@ -1,5 +1,6 @@
 import type { ThemeTokens } from '@rtpa/shared';
 import type { Tile as TileModel } from './rotationEngine';
+import { frameStyle } from '../lib/themeCss';
 
 interface TileProps {
   tile: TileModel;
@@ -11,15 +12,16 @@ export function Tile({ tile, theme }: TileProps) {
   const { frame, caption } = theme;
   const isPolaroid = frame.style === 'polaroid';
 
-  const frameStyle: React.CSSProperties = {
+  // Single source of truth for the frame: the shared frameStyle (the same one
+  // the Plan 5 admin theme-builder preview uses) so the live display and the
+  // admin preview render frames identically (WYSIWYG parity). Layer only the
+  // box-model props the shared style does not cover.
+  const containerStyle: React.CSSProperties = {
+    ...frameStyle(theme),
     boxSizing: 'border-box',
-    border: frame.style === 'none' ? 'none' : `${frame.borderWidth}px solid ${frame.borderColor}`,
-    borderRadius: `${frame.radius}px`,
-    boxShadow: frame.shadow ? '0 10px 30px rgba(0,0,0,0.45)' : 'none',
-    background: isPolaroid ? '#ffffff' : 'transparent',
-    padding: isPolaroid ? '8px 8px 28px 8px' : 0,
-    overflow: 'hidden',
     width: '100%',
+    height: '100%',
+    overflow: 'hidden',
   };
 
   const mediaStyle: React.CSSProperties = {
@@ -30,7 +32,7 @@ export function Tile({ tile, theme }: TileProps) {
   };
 
   return (
-    <div data-testid="tile-frame" style={frameStyle}>
+    <div data-testid="tile-frame" style={containerStyle}>
       {photo.mediaType === 'video' ? (
         <video
           style={mediaStyle}
