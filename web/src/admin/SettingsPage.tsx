@@ -1,7 +1,10 @@
-import { FormEvent, useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi, ApiError } from './api';
 import type { MediaLimits } from '@rtpa/shared';
+import type { SettingsDto } from './api';
+
+const MB = 1024 * 1024;
 
 interface SettingsFormProps {
   initialUrl: string;
@@ -11,16 +14,36 @@ interface SettingsFormProps {
 function SettingsForm({ initialUrl, initialLimits }: SettingsFormProps) {
   const qc = useQueryClient();
   const [publicBaseUrl, setPublicBaseUrl] = useState(initialUrl);
-  const [limits, setLimits] = useState<MediaLimits>(initialLimits);
+  // Store display values in MB for the two byte fields
+  const [photoMaxMb, setPhotoMaxMb] = useState(
+    isNaN(initialLimits.photoMaxBytes) ? 0 : Math.round(initialLimits.photoMaxBytes / MB * 100) / 100,
+  );
+  const [videoMaxMb, setVideoMaxMb] = useState(
+    isNaN(initialLimits.videoMaxBytes) ? 0 : Math.round(initialLimits.videoMaxBytes / MB * 100) / 100,
+  );
+  const [videoMaxDurationSec, setVideoMaxDurationSec] = useState(initialLimits.videoMaxDurationSec);
 
   const saveMut = useMutation({
     mutationFn: (input: { publicBaseUrl: string; mediaLimits: MediaLimits }) =>
       adminApi.saveSettings(input),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['admin', 'settings'] }); },
+    onSuccess: (returned: SettingsDto) => {
+      qc.setQueryData(['admin', 'settings'], returned);
+      void qc.invalidateQueries({ queryKey: ['admin', 'settings'] });
+    },
   });
 
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const limits: MediaLimits = {
+      photoMaxBytes: Math.round((isNaN(photoMaxMb) ? 0 : photoMaxMb) * MB),
+      videoMaxBytes: Math.round((isNaN(videoMaxMb) ? 0 : videoMaxMb) * MB),
+      videoMaxDurationSec: isNaN(videoMaxDurationSec) ? 0 : videoMaxDurationSec,
+    };
+    saveMut.mutate({ publicBaseUrl, mediaLimits: limits });
+  }
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); saveMut.mutate({ publicBaseUrl, mediaLimits: limits }); }} aria-label="Global settings">
+    <form onSubmit={handleSubmit} aria-label="Global settings">
       <div>
         <label htmlFor="publicBaseUrl">Public base URL</label>
         <input
@@ -30,21 +53,21 @@ function SettingsForm({ initialUrl, initialLimits }: SettingsFormProps) {
         />
       </div>
       <div>
-        <label htmlFor="photoMaxBytes">Photo max bytes</label>
+        <label htmlFor="photoMaxMb">Photo max (MB)</label>
         <input
-          id="photoMaxBytes"
+          id="photoMaxMb"
           type="number"
-          value={limits.photoMaxBytes}
-          onChange={(e) => setLimits({ ...limits, photoMaxBytes: Number(e.target.value) || 0 })}
+          value={photoMaxMb}
+          onChange={(e) => setPhotoMaxMb(Number(e.target.value))}
         />
       </div>
       <div>
-        <label htmlFor="videoMaxBytes">Video max bytes</label>
+        <label htmlFor="videoMaxMb">Video max (MB)</label>
         <input
-          id="videoMaxBytes"
+          id="videoMaxMb"
           type="number"
-          value={limits.videoMaxBytes}
-          onChange={(e) => setLimits({ ...limits, videoMaxBytes: Number(e.target.value) || 0 })}
+          value={videoMaxMb}
+          onChange={(e) => setVideoMaxMb(Number(e.target.value))}
         />
       </div>
       <div>
@@ -52,13 +75,15 @@ function SettingsForm({ initialUrl, initialLimits }: SettingsFormProps) {
         <input
           id="videoMaxDurationSec"
           type="number"
-          value={limits.videoMaxDurationSec}
-          onChange={(e) => setLimits({ ...limits, videoMaxDurationSec: Number(e.target.value) || 0 })}
+          value={videoMaxDurationSec}
+          onChange={(e) => setVideoMaxDurationSec(Number(e.target.value) || 0)}
         />
       </div>
       {saveMut.isPending && <p>Saving…</p>}
       {saveMut.isSuccess && <p role="status">Settings saved.</p>}
-      {saveMut.isError && <p role="alert">Error saving settings.</p>}
+      {saveMut.isError && (
+        <p role="alert">{(saveMut.error as ApiError)?.message ?? 'Error saving settings.'}</p>
+      )}
       <button type="submit" disabled={saveMut.isPending}>Save settings</button>
     </form>
   );

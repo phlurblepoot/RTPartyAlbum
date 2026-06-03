@@ -36,15 +36,17 @@ export function EventDetailPage() {
         {TABS.map((t) => (
           <button
             key={t.key}
+            id={`tab-${t.key}`}
             role="tab"
             aria-selected={tab === t.key}
+            aria-controls="event-tabpanel"
             onClick={() => setTab(t.key)}
           >
             {t.label}
           </button>
         ))}
       </div>
-      <div role="tabpanel">
+      <div role="tabpanel" id="event-tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === 'album' && <AlbumTab event={event} />}
         {tab === 'display' && <DisplayTab event={event} />}
         {tab === 'share' && <ShareTab event={event} />}

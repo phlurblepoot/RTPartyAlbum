@@ -10,6 +10,7 @@ vi.mock('../api', () => ({
   adminApi: {
     getSettings: vi.fn(),
     qrUrl: (id: string) => `/api/admin/events/${id}/qr`,
+    exportUrl: (id: string) => `/api/admin/events/${id}/export`,
     setUploadState: vi.fn(),
     endEvent: vi.fn(),
   },
@@ -77,5 +78,20 @@ describe('ShareTab', () => {
     await screen.findByText('https://party.test/e/ABCD');
     await userEvent.click(screen.getByRole('button', { name: /end event/i }));
     await waitFor(() => expect(adminApi.endEvent).toHaveBeenCalledWith('e1'));
+  });
+
+  it('download album link has href containing /export', async () => {
+    renderWithProviders(<ShareTab event={event} />);
+    await screen.findByText('https://party.test/e/ABCD');
+    const link = screen.getByRole('link', { name: /download album/i });
+    expect(link).toHaveAttribute('href', expect.stringContaining('/export'));
+  });
+
+  it('surfaces mutation error as alert', async () => {
+    (adminApi.setUploadState as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Upload state error'));
+    renderWithProviders(<ShareTab event={event} />);
+    await screen.findByText('https://party.test/e/ABCD');
+    await userEvent.click(screen.getByRole('button', { name: /pause uploads/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Upload state error');
   });
 });

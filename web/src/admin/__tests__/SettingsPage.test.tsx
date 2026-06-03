@@ -27,16 +27,17 @@ describe('SettingsPage', () => {
     (adminApi.changePassword as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   });
 
-  it('save settings PUTs updated publicBaseUrl and limits', async () => {
+  it('save settings PUTs updated publicBaseUrl and limits (MB converted to bytes)', async () => {
     renderWithProviders(<SettingsPage />);
     const base = await screen.findByLabelText(/public base url/i);
     fireEvent.change(base, { target: { value: 'https://new.test' } });
-    fireEvent.change(screen.getByLabelText(/photo max bytes/i), { target: { value: '1000' } });
+    // Input is now in MB — type "25" → should save 25 * 1024 * 1024 = 26214400 bytes
+    fireEvent.change(screen.getByLabelText(/photo max \(mb\)/i), { target: { value: '25' } });
     await userEvent.click(screen.getByRole('button', { name: /save settings/i }));
     await waitFor(() => expect(adminApi.saveSettings).toHaveBeenCalled());
     const arg = (adminApi.saveSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(arg.publicBaseUrl).toBe('https://new.test');
-    expect(arg.mediaLimits.photoMaxBytes).toBe(1000);
+    expect(arg.mediaLimits.photoMaxBytes).toBe(26214400);
   });
 
   it('password mismatch blocks submit and shows message', async () => {

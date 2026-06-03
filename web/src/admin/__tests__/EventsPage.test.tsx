@@ -6,7 +6,7 @@ import { renderWithProviders } from './helpers/renderWithProviders';
 import type { EventSummary, EventDetail } from '@rtpa/shared';
 
 vi.mock('../api', () => ({
-  adminApi: { listEvents: vi.fn(), createEvent: vi.fn() },
+  adminApi: { listEvents: vi.fn(), createEvent: vi.fn(), activateEvent: vi.fn() },
 }));
 import { adminApi } from '../api';
 
@@ -20,6 +20,9 @@ const summary: EventSummary = {
   id: 'e1', code: 'ABCD', name: 'Sara Birthday', createdAt: '2026-06-01T12:00:00.000Z',
   isActive: true, uploadEnabled: true, status: 'active', themeId: 'preset-midnight-gala', photoCount: 7,
 };
+const pausedSummary: EventSummary = {
+  ...summary, id: 'e3', name: 'Paused Event', status: 'paused', isActive: false,
+};
 const created: EventDetail = { ...summary, id: 'e2', code: 'WXYZ', name: 'New', motionConfig: {} as never };
 
 describe('EventsPage', () => {
@@ -27,6 +30,7 @@ describe('EventsPage', () => {
     vi.clearAllMocks();
     (adminApi.listEvents as ReturnType<typeof vi.fn>).mockResolvedValue([summary]);
     (adminApi.createEvent as ReturnType<typeof vi.fn>).mockResolvedValue(created);
+    (adminApi.activateEvent as ReturnType<typeof vi.fn>).mockResolvedValue({ ...pausedSummary, status: 'active' });
   });
 
   it('renders events with status badge and photo count', async () => {
@@ -49,5 +53,25 @@ describe('EventsPage', () => {
     (adminApi.listEvents as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     renderWithProviders(<EventsPage />);
     expect(await screen.findByTestId('empty-state')).toBeInTheDocument();
+  });
+
+  it('shows Re-activate button on paused event and clicking calls activateEvent', async () => {
+    (adminApi.listEvents as ReturnType<typeof vi.fn>).mockResolvedValue([summary, pausedSummary]);
+    renderWithProviders(<EventsPage />);
+    expect(await screen.findByText('Paused Event')).toBeInTheDocument();
+    // active event should NOT have Re-activate
+    const buttons = screen.getAllByRole('button', { name: /re-activate/i });
+    expect(buttons).toHaveLength(1);
+    await userEvent.click(buttons[0]);
+    await waitFor(() => expect(adminApi.activateEvent).toHaveBeenCalledWith('e3'));
+  });
+
+  it('shows alert when create event fails', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('Bad');
+    (adminApi.createEvent as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Server error'));
+    renderWithProviders(<EventsPage />);
+    await screen.findByText('Sara Birthday');
+    await userEvent.click(screen.getByRole('button', { name: /create event/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Server error');
   });
 });
