@@ -20,8 +20,12 @@ const room = (code: string) => `event:${code}`;
 
 /** Attach a typed Socket.IO server to the HTTP server and return emit helpers. */
 export function initRealtime(httpServer: HttpServer): RealtimeEmitters {
+  // SPA and websocket are served from the SAME origin (reverse proxy in prod,
+  // Vite's /socket.io proxy in dev), so Socket.IO must NOT accept arbitrary
+  // cross-origin connections. Disabling CORS handling leaves same-origin
+  // connections working through the proxy.
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
-    cors: { origin: true, credentials: true },
+    cors: { origin: false },
   });
 
   io.on('connection', (socket) => {
