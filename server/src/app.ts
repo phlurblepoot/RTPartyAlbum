@@ -5,9 +5,11 @@ import type { Config } from './config.js';
 import { healthRouter } from './routes/health.js';
 import { mediaRouter } from './routes/media.js';
 import { makeAdminAuthRouter } from './routes/adminAuth.js';
+import { makeAdminEventsRouter } from './routes/adminEvents.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { makeSettingsRepo } from './db/repositories/settingsRepo.js';
-import { ensureAdminBootstrap } from './auth/auth.js';
+import { makeEventRepo } from './db/repositories/eventRepo.js';
+import { ensureAdminBootstrap, requireAuth } from './auth/auth.js';
 
 export interface AppDeps {
   db: Db;
@@ -26,9 +28,11 @@ export function buildApp(deps: AppDeps): Express {
   // Build repos and bootstrap admin password before mounting routes.
   const settingsRepo = makeSettingsRepo(deps.db);
   ensureAdminBootstrap(settingsRepo, deps.config);
+  const eventRepo = makeEventRepo(deps.db);
   app.set('db', deps.db);
   app.set('config', deps.config);
   app.set('settingsRepo', settingsRepo);
+  app.set('eventRepo', eventRepo);
 
   // Middleware: cookie-parser and JSON body before routes.
   app.use(cookieParser());
@@ -36,6 +40,7 @@ export function buildApp(deps: AppDeps): Express {
 
   app.use('/api/health', healthRouter());
   app.use('/api/admin', makeAdminAuthRouter());
+  app.use('/api/admin/events', requireAuth, makeAdminEventsRouter());
   app.use('/media', mediaRouter(deps.config.dataDir));
 
   app.use(notFoundHandler);
