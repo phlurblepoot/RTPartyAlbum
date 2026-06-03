@@ -1,6 +1,27 @@
 import { nanoid } from 'nanoid';
+import { DEFAULT_MOTION_CONFIG } from '@rtpa/shared';
 import type { EventSummary, EventDetail, EventStatus, MotionConfig } from '@rtpa/shared';
 import type { Db } from '../connection.js';
+
+/**
+ * Backfill any fields missing from a stored motion config with current defaults.
+ * Events created before new fields were added (e.g. tiltMinDeg/tiltMaxDeg, or the
+ * sway/bob/breathe weights) would otherwise return an incomplete config that the
+ * admin save endpoint's strict schema rejects with a 400. Stored values always win;
+ * defaults only fill gaps. Re-saving then persists the complete config.
+ */
+function normalizeMotionConfig(raw: unknown): MotionConfig {
+  const c = (raw ?? {}) as Partial<MotionConfig>;
+  const d = DEFAULT_MOTION_CONFIG;
+  return {
+    ...d,
+    ...c,
+    motionWeights: { ...d.motionWeights, ...(c.motionWeights ?? {}) },
+    enterWeights: { ...d.enterWeights, ...(c.enterWeights ?? {}) },
+    leaveWeights: { ...d.leaveWeights, ...(c.leaveWeights ?? {}) },
+    dwell: { ...d.dwell, ...(c.dwell ?? {}) },
+  };
+}
 
 export interface EventRepo {
   list(): EventSummary[];
@@ -53,7 +74,7 @@ function rowToSummary(row: EventRow): EventSummary {
 function rowToDetail(row: EventRow): EventDetail {
   return {
     ...rowToSummary(row),
-    motionConfig: JSON.parse(row.motion_config) as MotionConfig,
+    motionConfig: normalizeMotionConfig(JSON.parse(row.motion_config)),
   };
 }
 

@@ -110,4 +110,50 @@ describe('admin events routes', () => {
     expect(res.body.isActive).toBe(false);
     expect(res.body.uploadEnabled).toBe(false);
   });
+
+  it('normalizes a pre-upgrade motion config (missing new fields) so saving still works', async () => {
+    // Build with direct db access to simulate an event stored before new config
+    // fields existed (tiltMinDeg/tiltMaxDeg, sway/bob/breathe weights).
+    const config = loadConfig({ nodeEnv: 'test', dataDir: ':memory:', adminPassword: 'hunter2' });
+    const db = openMemoryDb();
+    migrate(db);
+    const settingsRepo = makeSettingsRepo(db);
+    const themeRepo = makeThemeRepo(db);
+    seed({ themeRepo, settingsRepo, sessionSecret: config.sessionSecret });
+    const app = buildApp({ db, config });
+    const agent = await authedAgent(app);
+
+    const created = (await agent.post('/api/admin/events').send({ name: 'Legacy' })).body;
+
+    // Overwrite with an OLD-shaped config (no tilt fields, only the original 4 weights).
+    const oldConfig = {
+      motionWeights: { drift: 5, current: 2, orbit: 1, mosaic: 2 },
+      speed: 1,
+      maxOnCanvas: 24,
+      dwell: { enabled: true, durationMs: 45000, varianceMs: 15000 },
+      enterWeights: { flyInEdge: 3, scalePop: 2, fadeGrow: 2, spinIn: 1, dropBounce: 2 },
+      leaveWeights: { driftOffEdge: 3, shrinkFade: 3, spinOut: 1, slideAway: 2 },
+      baseSize: 220,
+      sizeVariance: 0.4,
+    };
+    db.prepare('UPDATE events SET motion_config = ? WHERE id = ?').run(
+      JSON.stringify(oldConfig),
+      created.id,
+    );
+
+    // Reading the event backfills the missing fields from defaults.
+    const got = (await agent.get(`/api/admin/events/${created.id}`)).body;
+    expect(got.motionConfig.tiltMinDeg).toBe(-8);
+    expect(got.motionConfig.tiltMaxDeg).toBe(8);
+    expect(got.motionConfig.motionWeights.sway).toBeGreaterThanOrEqual(0);
+    expect(got.motionConfig.motionWeights.bob).toBeGreaterThanOrEqual(0);
+    expect(got.motionConfig.motionWeights.breathe).toBeGreaterThanOrEqual(0);
+
+    // Saving a change built from the loaded config now passes validation (no 400).
+    const put = await agent
+      .put(`/api/admin/events/${created.id}/motion`)
+      .send({ motionConfig: { ...got.motionConfig, speed: 2 } });
+    expect(put.status).toBe(200);
+    expect(put.body.motionConfig.speed).toBe(2);
+  });
 });
