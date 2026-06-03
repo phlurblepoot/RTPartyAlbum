@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DisplayTab } from '../event/DisplayTab';
 import { renderWithProviders } from './helpers/renderWithProviders';
 import { DEFAULT_MOTION_CONFIG } from '@rtpa/shared';
 import type { EventDetail } from '@rtpa/shared';
 
-vi.mock('../api', () => ({ adminApi: { setMotion: vi.fn() } }));
-import { adminApi } from '../api';
+vi.mock('../api', async () => {
+  const actual = await vi.importActual<typeof import('../api')>('../api');
+  return { ApiError: actual.ApiError, adminApi: { setMotion: vi.fn() } };
+});
+import { adminApi, ApiError } from '../api';
 
 const event: EventDetail = {
   id: 'e1',
@@ -36,7 +39,9 @@ describe('DisplayTab', () => {
     renderWithProviders(<DisplayTab event={event} />);
     const speed = screen.getByLabelText(/overall speed/i) as HTMLInputElement;
     fireEvent.change(speed, { target: { value: '2' } });
-    vi.advanceTimersByTime(400);
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
     await waitFor(() => expect(adminApi.setMotion).toHaveBeenCalledTimes(1));
     const [id, cfg] = (adminApi.setMotion as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(id).toBe('e1');
@@ -48,7 +53,9 @@ describe('DisplayTab', () => {
     renderWithProviders(<DisplayTab event={event} />);
     const max = screen.getByLabelText(/max on canvas/i) as HTMLInputElement;
     fireEvent.change(max, { target: { value: '30' } });
-    vi.advanceTimersByTime(400);
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
     await waitFor(() => expect(adminApi.setMotion).toHaveBeenCalled());
     const cfg = (adminApi.setMotion as ReturnType<typeof vi.fn>).mock.calls.at(-1)![1];
     expect(cfg.maxOnCanvas).toBe(30);
@@ -58,10 +65,27 @@ describe('DisplayTab', () => {
     renderWithProviders(<DisplayTab event={event} />);
     const toggle = screen.getByLabelText(/dwell timeout enabled/i);
     fireEvent.click(toggle);
-    vi.advanceTimersByTime(400);
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
     await waitFor(() => expect(adminApi.setMotion).toHaveBeenCalled());
     const cfg = (adminApi.setMotion as ReturnType<typeof vi.fn>).mock.calls.at(-1)![1];
     expect(cfg.dwell.enabled).toBe(false);
+  });
+
+  it('surfaces a save-error when setMotion rejects and clears the saving indicator', async () => {
+    (adminApi.setMotion as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new ApiError(400, '{"error":"bad"}'),
+    );
+    renderWithProviders(<DisplayTab event={event} />);
+    const speed = screen.getByLabelText(/overall speed/i) as HTMLInputElement;
+    fireEvent.change(speed, { target: { value: '2' } });
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.getByRole('alert')).toHaveTextContent(/save failed \(400\)/i);
+    expect(screen.queryByText('Saving…')).not.toBeInTheDocument();
   });
 
   it('open display opens /e/:code/display', async () => {

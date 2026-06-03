@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { adminApi } from '../api';
+import { adminApi, ApiError } from '../api';
 import { useDebouncedCallback } from './useDebouncedCallback';
 import type {
   EventDetail,
@@ -18,14 +18,19 @@ export function DisplayTab({ event }: { event: EventDetail }) {
   const queryClient = useQueryClient();
   const [config, setConfig] = useState<MotionConfig>(event.motionConfig);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const pushConfig = useDebouncedCallback((cfg: MotionConfig) => {
     setSaving(true);
     adminApi
       .setMotion(event.id, cfg)
-      .then(() => {
-        void queryClient.invalidateQueries({ queryKey: ['admin', 'event', event.id] });
+      .then((updatedEvent) => {
+        queryClient.setQueryData(['admin', 'event', event.id], updatedEvent);
+        setSaveError(null);
       })
+      .catch((err) =>
+        setSaveError(err instanceof ApiError ? `Save failed (${err.status})` : 'Save failed'),
+      )
       .finally(() => setSaving(false));
   }, 350);
 
@@ -47,6 +52,11 @@ export function DisplayTab({ event }: { event: EventDetail }) {
         <span className="display-tab__status" aria-live="polite">
           {saving ? 'Saving…' : 'Saved'}
         </span>
+        {saveError && (
+          <span role="alert" className="save-error">
+            {saveError}
+          </span>
+        )}
       </div>
 
       <fieldset>
@@ -93,7 +103,10 @@ export function DisplayTab({ event }: { event: EventDetail }) {
           max={200}
           value={config.maxOnCanvas}
           aria-label="max on canvas"
-          onChange={(e) => update({ ...config, maxOnCanvas: Number(e.target.value) })}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (!Number.isNaN(n)) update({ ...config, maxOnCanvas: n });
+          }}
         />
       </label>
 
@@ -119,12 +132,11 @@ export function DisplayTab({ event }: { event: EventDetail }) {
                 step={1000}
                 value={config.dwell.durationMs}
                 aria-label="dwell duration"
-                onChange={(e) =>
-                  update({
-                    ...config,
-                    dwell: { ...config.dwell, durationMs: Number(e.target.value) },
-                  })
-                }
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isNaN(n))
+                    update({ ...config, dwell: { ...config.dwell, durationMs: n } });
+                }}
               />
             </label>
             <label>
@@ -135,12 +147,11 @@ export function DisplayTab({ event }: { event: EventDetail }) {
                 step={1000}
                 value={config.dwell.varianceMs}
                 aria-label="dwell variance"
-                onChange={(e) =>
-                  update({
-                    ...config,
-                    dwell: { ...config.dwell, varianceMs: Number(e.target.value) },
-                  })
-                }
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isNaN(n))
+                    update({ ...config, dwell: { ...config.dwell, varianceMs: n } });
+                }}
               />
             </label>
           </>
