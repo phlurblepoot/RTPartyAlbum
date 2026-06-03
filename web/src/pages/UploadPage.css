@@ -1,1 +1,248 @@
-/* Styles for UploadPage are authored in Task 9. */
+/* UploadPage — mobile-first, driven by theme CSS custom properties.
+   Theme vars (--rtpa-accent, --rtpa-font, --rtpa-frame-*, --rtpa-caption-*)
+   are injected onto the .rtpa-upload root by themeToCssVars + backgroundStyle.
+   Fallback values ensure an un-themed render still looks presentable. */
+
+/* Sensible defaults when no theme tokens override them */
+:root {
+  --rtpa-accent: #c9a227;
+  --rtpa-font: system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ── Page root ──────────────────────────────────────────────────── */
+
+.rtpa-upload {
+  min-height: 100vh;
+  /* Use dynamic viewport height on browsers that support it */
+  min-height: 100dvh;
+  margin: 0;
+  padding: clamp(16px, 5vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: #fff;
+  font-family: var(--rtpa-font, system-ui, sans-serif);
+  /* Dark fallback; backgroundStyle injects a real background when themed */
+  background: #10131c;
+}
+
+/* Loading / error / not-found states: centred column */
+.rtpa-upload--state {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+
+.rtpa-upload__header {
+  text-align: center;
+}
+
+.rtpa-upload__title {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  line-height: 1.1;
+}
+
+.rtpa-upload__note {
+  margin: 0 auto;
+  max-width: 28rem;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+/* ── Body sections ───────────────────────────────────────────────── */
+
+.rtpa-upload__body,
+.rtpa-upload__closed {
+  width: 100%;
+  max-width: 32rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rtpa-upload__closed {
+  text-align: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+}
+
+/* ── Name field ──────────────────────────────────────────────────── */
+
+.rtpa-upload__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.95rem;
+}
+
+.rtpa-upload__field input {
+  padding: 14px 16px;
+  font-size: 1rem;
+  font-family: inherit;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  /* Prevent iOS zoom on focus (input font-size >= 16px) */
+}
+
+.rtpa-upload__field input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.rtpa-upload__field input:focus {
+  outline: 2px solid var(--rtpa-accent, #c9a227);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+/* ── Add-photos / videos tap target ─────────────────────────────── */
+
+.rtpa-upload__add {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 2px dashed var(--rtpa-accent, #c9a227);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  text-align: center;
+  /* Improve tap response on mobile */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rtpa-upload__add:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.rtpa-upload__add-label {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--rtpa-accent, #c9a227);
+  pointer-events: none;
+}
+
+/* Hidden file input stretched over the entire tap target */
+.rtpa-upload__file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ── Progress bar (track + fill) ─────────────────────────────────── */
+
+.rtpa-upload__progress {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+/* Width is set inline via style prop; transition animates it smoothly */
+.rtpa-upload__progress-bar {
+  height: 100%;
+  background: var(--rtpa-accent, #c9a227);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+/* ── Toasts — rejections, errors, name-prompt ────────────────────── */
+
+.rtpa-upload__toast {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(180, 30, 30, 0.85);
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+/* ── Success state ───────────────────────────────────────────────── */
+
+.rtpa-upload__success {
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.rtpa-upload__success p {
+  margin: 0 0 8px;
+}
+
+/* ── Contribution thumbnail strip ───────────────────────────────── */
+
+.rtpa-upload__strip {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  /* Momentum scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.rtpa-upload__strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+.rtpa-upload__strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rtpa-upload__strip::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+.rtpa-upload__strip img {
+  flex: 0 0 auto;
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 12px;
+  /* Use theme frame vars with graceful fallbacks */
+  border: var(--rtpa-frame-border-width, 2px) solid
+    var(--rtpa-frame-border-color, rgba(255, 255, 255, 0.7));
+  box-shadow: var(--rtpa-frame-shadow, none);
+}
+
+/* ── Responsive: slightly wider screens ─────────────────────────── */
+
+@media (min-width: 480px) {
+  .rtpa-upload__add {
+    min-height: 100px;
+  }
+
+  .rtpa-upload__strip img {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+/* ── Accessibility: respect reduced-motion preference ───────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .rtpa-upload__progress-bar {
+    transition: none;
+  }
+}
