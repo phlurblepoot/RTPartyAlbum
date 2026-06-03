@@ -6,6 +6,7 @@ import { healthRouter } from './routes/health.js';
 import { mediaRouter } from './routes/media.js';
 import { makeAdminAuthRouter } from './routes/adminAuth.js';
 import { makeAdminEventsRouter } from './routes/adminEvents.js';
+import { makeAdminThemesRouter } from './routes/adminThemes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { makeSettingsRepo } from './db/repositories/settingsRepo.js';
 import { makeEventRepo } from './db/repositories/eventRepo.js';
@@ -58,6 +59,7 @@ export function buildApp(deps: AppDeps): Express {
   app.use('/api/health', healthRouter());
   app.use('/api/admin', makeAdminAuthRouter());
   app.use('/api/admin/events', requireAuth, makeAdminEventsRouter());
+  app.use('/api/admin/themes', requireAuth, makeAdminThemesRouter());
   app.use('/media', mediaRouter(config.dataDir));
 
   app.use(notFoundHandler);
