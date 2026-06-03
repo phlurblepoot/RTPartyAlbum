@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp } from '../app.js';
 import { openMemoryDb } from '../db/connection.js';
+import { migrate } from '../db/migrate.js';
 import { loadConfig } from '../config.js';
 
 const dirs: string[] = [];
@@ -15,7 +16,9 @@ function tmp(): string {
 }
 /** A minimal deps object for app-level tests (health/404 don't touch the db). */
 function deps() {
-  return { db: openMemoryDb(), config: loadConfig({ dataDir: tmp() }) };
+  const db = openMemoryDb();
+  migrate(db);
+  return { db, config: loadConfig({ dataDir: tmp() }) };
 }
 afterEach(() => {
   while (dirs.length) rmSync(dirs.pop()!, { recursive: true, force: true });
