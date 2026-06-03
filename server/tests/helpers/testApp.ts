@@ -8,7 +8,8 @@ import { makeSettingsRepo, type SettingsRepo } from '../../src/db/repositories/s
 import { makeThemeRepo, type ThemeRepo } from '../../src/db/repositories/themeRepo.js';
 import { makeEventRepo, type EventRepo } from '../../src/db/repositories/eventRepo.js';
 import { makePhotoRepo, type PhotoRepo } from '../../src/db/repositories/photoRepo.js';
-import { DEFAULT_THEME_ID, DEFAULT_MOTION_CONFIG, type EventDetail } from '@rtpa/shared';
+import type { RealtimeEmitters } from '../../src/realtime/realtime.js';
+import { DEFAULT_THEME_ID, DEFAULT_MOTION_CONFIG, type EventDetail, type Photo } from '@rtpa/shared';
 
 /** Shared admin password used by createTestApp's bootstrap and loginAdmin's default. */
 export const TEST_ADMIN_PASSWORD = 'test-admin-pw';
@@ -26,9 +27,28 @@ interface CreateTestAppOpts {
   adminPassword?: string;
 }
 
+/** A single captured realtime emission (type + payload). */
+export interface EmittedEvent {
+  type: string;
+  payload: unknown;
+}
+
+/** Repos bundle returned by createTestApp. */
+export interface TestRepos {
+  eventRepo: EventRepo;
+  photoRepo: PhotoRepo;
+  themeRepo: ThemeRepo;
+  settingsRepo: SettingsRepo;
+}
+
 export interface TestApp {
   app: Express;
   db: Db;
+  /** Flat array of all realtime emissions captured during this test app's lifetime. */
+  emitted: EmittedEvent[];
+  /** Bundle of all repos (shorthand access). */
+  repos: TestRepos;
+  /** Individual repo references (kept for backward-compat with existing tests). */
   eventRepo: EventRepo;
   photoRepo: PhotoRepo;
   themeRepo: ThemeRepo;
@@ -37,9 +57,33 @@ export interface TestApp {
 }
 
 /**
+ * Build a spy RealtimeEmitters that records all emissions into the given array.
+ */
+function makeSpyRealtime(emitted: EmittedEvent[]): RealtimeEmitters {
+  return {
+    emitPhotoAdded(code: string, photo: Photo) {
+      emitted.push({ type: 'photo:added', payload: photo });
+    },
+    emitPhotoHidden(code: string, id: string) {
+      emitted.push({ type: 'photo:hidden', payload: { id } });
+    },
+    emitPhotoDeleted(code: string, id: string) {
+      emitted.push({ type: 'photo:deleted', payload: { id } });
+    },
+    emitSettingsUpdated(code: string, motionConfig) {
+      emitted.push({ type: 'settings:updated', payload: motionConfig });
+    },
+    emitThemeUpdated(code: string, theme) {
+      emitted.push({ type: 'theme:updated', payload: theme });
+    },
+  };
+}
+
+/**
  * Create a test Express app backed by an in-memory DB, fully wired with repos and
  * admin bootstrap. Returns the app, the underlying db + repos (for asserting
- * DB side-effects directly), and a `seedActiveEvent` helper.
+ * DB side-effects directly), an `emitted` array for realtime spy assertions,
+ * and a `seedActiveEvent` helper.
  */
 export async function createTestApp(opts: CreateTestAppOpts): Promise<TestApp> {
   const adminPassword = opts.adminPassword ?? TEST_ADMIN_PASSWORD;
@@ -57,7 +101,12 @@ export async function createTestApp(opts: CreateTestAppOpts): Promise<TestApp> {
   const photoRepo = makePhotoRepo(db);
   seed({ themeRepo, settingsRepo, sessionSecret: config.sessionSecret });
 
-  const app = buildApp({ db, config, uploadRateMax: opts.uploadRateMax });
+  const emitted: EmittedEvent[] = [];
+  const realtime = makeSpyRealtime(emitted);
+
+  const app = buildApp({ db, config, realtime, uploadRateMax: opts.uploadRateMax });
+
+  const repos: TestRepos = { eventRepo, photoRepo, themeRepo, settingsRepo };
 
   function seedActiveEvent(o: SeedEventOpts): EventDetail {
     const ev = eventRepo.create({
@@ -72,5 +121,15 @@ export async function createTestApp(opts: CreateTestAppOpts): Promise<TestApp> {
     return eventRepo.getByCode(o.code)!;
   }
 
-  return { app, db, eventRepo, photoRepo, themeRepo, settingsRepo, seedActiveEvent };
+  return {
+    app,
+    db,
+    emitted,
+    repos,
+    eventRepo,
+    photoRepo,
+    themeRepo,
+    settingsRepo,
+    seedActiveEvent,
+  };
 }

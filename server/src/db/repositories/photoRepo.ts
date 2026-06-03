@@ -18,11 +18,19 @@ export interface PhotoCreateInput {
   ipAddress: string;
 }
 
+export interface PhotoPaths {
+  filePath: string;
+  displayPath: string;
+  thumbPath: string;
+}
+
 export interface PhotoRepo {
   create(input: PhotoCreateInput): PhotoAdmin;
   listForEventAdmin(eventId: string): PhotoAdmin[];
   listForEventPublic(eventId: string): Photo[];
   getById(id: string): PhotoAdmin | undefined;
+  /** Return the raw filesystem paths for a photo (for deletion). */
+  getPaths(id: string): PhotoPaths | undefined;
   setHidden(id: string, hidden: boolean): void;
   remove(id: string): void;
   countForEvent(eventId: string): number;
@@ -141,6 +149,20 @@ export function makePhotoRepo(db: Db): PhotoRepo {
     setHiddenStmt.run(hidden ? 1 : 0, id);
   }
 
+  const selPaths = db.prepare(`SELECT file_path, display_path, thumb_path FROM photos WHERE id = ?`);
+
+  function getPaths(id: string): PhotoPaths | undefined {
+    const row = selPaths.get(id) as
+      | { file_path: string; display_path: string; thumb_path: string }
+      | undefined;
+    if (!row) return undefined;
+    return {
+      filePath: row.file_path,
+      displayPath: row.display_path,
+      thumbPath: row.thumb_path,
+    };
+  }
+
   function remove(id: string): void {
     del.run(id);
   }
@@ -150,5 +172,5 @@ export function makePhotoRepo(db: Db): PhotoRepo {
     return row.n;
   }
 
-  return { create, listForEventAdmin, listForEventPublic, getById, setHidden, remove, countForEvent };
+  return { create, listForEventAdmin, listForEventPublic, getById, getPaths, setHidden, remove, countForEvent };
 }

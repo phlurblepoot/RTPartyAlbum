@@ -28,7 +28,7 @@ function getMediaLimits(settingsRepo: SettingsRepo): MediaLimits {
 }
 
 /** Strip admin-only device fields from a PhotoAdmin row to produce a public Photo. */
-function toPublicPhoto(row: PhotoAdmin): Photo {
+export function toPublicPhoto(row: PhotoAdmin): Photo {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { deviceId, userAgent, ipAddress, ...pub } = row;
   return pub;
