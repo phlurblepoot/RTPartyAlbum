@@ -2,10 +2,46 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { DEFAULT_THEME_ID, DEFAULT_MOTION_CONFIG } from '@rtpa/shared';
 import type { EventRepo } from '../db/repositories/eventRepo.js';
+import type { ThemeRepo } from '../db/repositories/themeRepo.js';
+import type { RealtimeEmitters } from '../realtime/realtime.js';
 import { generateUniqueCode } from '../services/eventCode.js';
 
 const createSchema = z.object({ name: z.string().trim().min(1).max(120) });
 const uploadStateSchema = z.object({ enabled: z.boolean() });
+
+const motionConfigSchema = z.object({
+  motionWeights: z.object({
+    drift: z.number(),
+    current: z.number(),
+    orbit: z.number(),
+    mosaic: z.number(),
+  }),
+  speed: z.number().min(0.25).max(3),
+  maxOnCanvas: z.number().int().positive(),
+  dwell: z.object({
+    enabled: z.boolean(),
+    durationMs: z.number().int().nonnegative(),
+    varianceMs: z.number().int().nonnegative(),
+  }),
+  enterWeights: z.object({
+    flyInEdge: z.number(),
+    scalePop: z.number(),
+    fadeGrow: z.number(),
+    spinIn: z.number(),
+    dropBounce: z.number(),
+  }),
+  leaveWeights: z.object({
+    driftOffEdge: z.number(),
+    shrinkFade: z.number(),
+    spinOut: z.number(),
+    slideAway: z.number(),
+  }),
+  baseSize: z.number().positive(),
+  sizeVariance: z.number().min(0).max(1),
+});
+
+const motionSchema = z.object({ motionConfig: motionConfigSchema });
+const themeUpdateSchema = z.object({ themeId: z.string().min(1) });
 
 export function makeAdminEventsRouter(): Router {
   const router = Router();
@@ -75,6 +111,48 @@ export function makeAdminEventsRouter(): Router {
       return;
     }
     eventRepo.end(req.params.id);
+    res.json(eventRepo.getById(req.params.id));
+  });
+
+  router.put('/:id/motion', (req, res) => {
+    const parsed = motionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_body' });
+      return;
+    }
+    const eventRepo = req.app.get('eventRepo') as EventRepo;
+    const realtime = req.app.get('realtime') as RealtimeEmitters;
+    const event = eventRepo.getById(req.params.id);
+    if (!event) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    eventRepo.setMotionConfig(req.params.id, parsed.data.motionConfig);
+    realtime.emitSettingsUpdated(event.code, parsed.data.motionConfig);
+    res.json(eventRepo.getById(req.params.id));
+  });
+
+  router.put('/:id/theme', (req, res) => {
+    const parsed = themeUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_body' });
+      return;
+    }
+    const eventRepo = req.app.get('eventRepo') as EventRepo;
+    const themeRepo = req.app.get('themeRepo') as ThemeRepo;
+    const realtime = req.app.get('realtime') as RealtimeEmitters;
+    const event = eventRepo.getById(req.params.id);
+    if (!event) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    const theme = themeRepo.getById(parsed.data.themeId);
+    if (!theme) {
+      res.status(404).json({ error: 'theme_not_found' });
+      return;
+    }
+    eventRepo.setTheme(req.params.id, theme.id);
+    realtime.emitThemeUpdated(event.code, theme);
     res.json(eventRepo.getById(req.params.id));
   });
 
