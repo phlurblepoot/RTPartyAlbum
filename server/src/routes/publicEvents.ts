@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
-import type { PublicEvent, MediaLimits, Photo, PhotoAdmin } from '@rtpa/shared';
+import type { PublicEvent, MediaLimits, Photo, PhotoAdmin, EventDetail } from '@rtpa/shared';
 import { DEFAULT_THEME_ID, DEFAULT_MEDIA_LIMITS, SETTINGS_KEYS } from '@rtpa/shared';
 import type { EventRepo } from '../db/repositories/eventRepo.js';
 import type { ThemeRepo } from '../db/repositories/themeRepo.js';
@@ -86,6 +86,39 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
     },
   });
 
+  // Coarse per-IP pre-limiter. Runs BEFORE multer so a flood is bounded before any
+  // body is buffered. Keyed on req.ip ONLY (deviceId isn't parsed yet at this point).
+  // Ceiling is slightly higher than the per-device limiter so legitimate multi-device
+  // traffic from one NAT/IP isn't unduly blocked while still capping abuse.
+  const ipPreLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: opts.uploadRateMax ? opts.uploadRateMax * 4 : 240,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'too_many_uploads' },
+    keyGenerator: (req) => req.ip ?? 'noip',
+  });
+
+  // Cheap rejection gate. Runs FIRST — BEFORE multer buffers the body — so an unknown
+  // or upload-disabled/ended event is rejected without paying the memory cost of
+  // buffering up to ~1.2GB (20 files × 60MB). On success it stashes the resolved event
+  // on res.locals so the handler can reuse it without a second getByCode.
+  const preUploadGate: RequestHandler = (req, res, next) => {
+    const eventRepo = req.app.get('eventRepo') as EventRepo;
+    const code = req.params.code ?? '';
+    const event = eventRepo.getByCode(code);
+    if (!event) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    if (event.status === 'ended' || !event.uploadEnabled) {
+      res.status(403).json({ error: 'uploads_closed' });
+      return;
+    }
+    res.locals.event = event;
+    next();
+  };
+
   // Multipart parser. The coarse byte cap = max(photo, video) bytes from CURRENT
   // settings; finer per-type caps are enforced afterward by validateUpload against the
   // true received byte count. Build the multer middleware PER REQUEST (cheap, pure
@@ -100,23 +133,21 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
 
   router.post(
     '/by-code/:code/upload',
-    dynamicUpload, // parse multipart first so req.body.deviceId exists for the limiter
-    uploadLimiter,
+    preUploadGate, // 404/403 BEFORE buffering — rejects bad/closed targets cheaply
+    ipPreLimiter, // coarse per-IP flood bound, also before buffering
+    dynamicUpload, // now buffers only for a valid, open event under the IP ceiling
+    uploadLimiter, // fine-grained deviceId:ip limiter (needs req.body.deviceId from multer)
     async (req, res, next) => {
-      const eventRepo = req.app.get('eventRepo') as EventRepo;
       const photoRepo = req.app.get('photoRepo') as PhotoRepo;
       const settingsRepo = req.app.get('settingsRepo') as SettingsRepo;
       const realtime = req.app.get('realtime') as RealtimeEmitters;
       const config = req.app.get('config') as Config;
 
-      const code = req.params.code ?? '';
-      const event = eventRepo.getByCode(code);
+      // Reuse the event resolved by preUploadGate (defense-in-depth fallback below).
+      const event = (res.locals.event as EventDetail | undefined) ?? undefined;
       if (!event) {
+        // Should not happen (gate runs first), but guard rather than dereference undefined.
         res.status(404).json({ error: 'not_found' });
-        return;
-      }
-      if (event.status === 'ended' || !event.uploadEnabled) {
-        res.status(403).json({ error: 'uploads_closed' });
         return;
       }
 

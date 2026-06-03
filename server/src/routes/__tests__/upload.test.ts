@@ -325,6 +325,52 @@ describe('POST /api/events/by-code/:code/upload', () => {
     expect(res.status).toBe(413);
   });
 
+  it('rejects an OVERSIZE upload to a DISABLED event with 403, not 413 (gate before buffering)', async () => {
+    const { dataDir, uploadsDir } = await dirsForTest();
+    const { app, seedEvent } = await makeApp({ dataDir, uploadsDir });
+    seedEvent({ code: 'closedbig', uploadEnabled: false });
+    // Tiny multer cap so the file is OVERSIZE relative to it. If multer ran before the
+    // pre-gate, this would surface as 413 on size. Getting 403 proves the cheap event
+    // check short-circuited BEFORE the body was buffered.
+    const settingsRepo = (app as unknown as { get: (k: string) => unknown }).get(
+      'settingsRepo',
+    ) as { setJson: (k: string, v: unknown) => void };
+    settingsRepo.setJson('media_limits', {
+      photoMaxBytes: 1024,
+      videoMaxBytes: 1024,
+      videoMaxDurationSec: 30,
+    });
+    const jpeg = await makeJpegBuffer(1200, 1200); // well over the 1KB cap
+    const res = await request(app)
+      .post('/api/events/by-code/closedbig/upload')
+      .field('uploaderName', 'X')
+      .field('deviceId', 'd')
+      .attach('files', jpeg, 'huge.jpg');
+    expect(res.status).toBe(403);
+    expect(res.status).not.toBe(413);
+  });
+
+  it('rejects an OVERSIZE upload to an UNKNOWN event with 404, not 413 (gate before buffering)', async () => {
+    const { dataDir, uploadsDir } = await dirsForTest();
+    const { app } = await makeApp({ dataDir, uploadsDir });
+    const settingsRepo = (app as unknown as { get: (k: string) => unknown }).get(
+      'settingsRepo',
+    ) as { setJson: (k: string, v: unknown) => void };
+    settingsRepo.setJson('media_limits', {
+      photoMaxBytes: 1024,
+      videoMaxBytes: 1024,
+      videoMaxDurationSec: 30,
+    });
+    const jpeg = await makeJpegBuffer(1200, 1200);
+    const res = await request(app)
+      .post('/api/events/by-code/ghost/upload')
+      .field('uploaderName', 'X')
+      .field('deviceId', 'd')
+      .attach('files', jpeg, 'huge.jpg');
+    expect(res.status).toBe(404);
+    expect(res.status).not.toBe(413);
+  });
+
   it('rate-limits a flood of uploads from the same device (429)', async () => {
     const { dataDir, uploadsDir } = await dirsForTest();
     const { app, seedEvent } = await makeApp({ dataDir, uploadsDir, uploadRateMax: 2 });
