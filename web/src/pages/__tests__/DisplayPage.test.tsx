@@ -6,7 +6,7 @@ import { DisplayPage } from '../DisplayPage';
 import { makePhoto, testConfig } from '../../display/__tests__/fixtures';
 import { PRESET_THEME_TOKENS } from '../../display/renderer/__tests__/testTheme';
 import * as rotationEngine from '../../display/rotationEngine';
-import type { PublicEvent, Photo } from '@rtpa/shared';
+import type { PublicEvent, Photo, Theme } from '@rtpa/shared';
 
 // --- fakes ---
 const fakeSocket = {
@@ -170,6 +170,35 @@ describe('DisplayPage', () => {
     const { container } = renderPage();
     await waitFor(() => expect(container.querySelectorAll('[data-tile-id]').length).toBeGreaterThan(0));
     expect(container.querySelector('[data-testid="canvas-surface"]')).not.toBeNull();
+  });
+
+  it('theme:updated swaps the live theme (Backdrop re-renders with new tokens)', async () => {
+    const { container } = renderPage();
+    await waitFor(() => expect(container.querySelectorAll('[data-tile-id]').length).toBeGreaterThan(0));
+
+    const backdrop = () => container.querySelector('[data-testid="backdrop"]') as HTMLElement;
+    // Initial theme: gradient background + glow ambient (from PRESET_THEME_TOKENS).
+    expect(backdrop().style.background).toContain('linear-gradient');
+    expect(container.querySelector('.ambient-glow')).not.toBeNull();
+
+    const newTheme: Theme = {
+      id: 't2',
+      name: 'Sunset',
+      isPreset: false,
+      tokens: {
+        ...PRESET_THEME_TOKENS,
+        background: { type: 'solid', value: 'rgb(255, 0, 0)' },
+        ambient: 'bokeh',
+      },
+    };
+    act(() => {
+      fakeSocket.handlers['theme:updated'](newTheme);
+    });
+
+    await waitFor(() => expect(backdrop().style.background).toBe('rgb(255, 0, 0)'));
+    expect(backdrop().style.background).not.toContain('linear-gradient');
+    expect(container.querySelector('.ambient-bokeh')).not.toBeNull();
+    expect(container.querySelector('.ambient-glow')).toBeNull();
   });
 
   it('seeds the engine exactly once with default props (no re-seed loop)', async () => {
