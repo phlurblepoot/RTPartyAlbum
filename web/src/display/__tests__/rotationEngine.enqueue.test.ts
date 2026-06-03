@@ -4,7 +4,7 @@ import type { EngineState } from '../rotationEngine';
 import { makePhoto, testConfig, constRng } from './fixtures';
 
 function emptyState(): EngineState {
-  return { onCanvas: [], queue: [], album: [], config: testConfig };
+  return { onCanvas: [], queue: [], album: [], config: testConfig, leftAt: {}, lastShownAt: {} };
 }
 
 describe('enqueueUpload', () => {
