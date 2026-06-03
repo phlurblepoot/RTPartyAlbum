@@ -11,10 +11,22 @@ import { makeSettingsRepo } from './db/repositories/settingsRepo.js';
 import { makeEventRepo } from './db/repositories/eventRepo.js';
 import { makeThemeRepo } from './db/repositories/themeRepo.js';
 import { ensureAdminBootstrap, requireAuth } from './auth/auth.js';
+import type { RealtimeEmitters } from './realtime/realtime.js';
+
+export type { RealtimeEmitters };
+
+export const noopRealtime: RealtimeEmitters = {
+  emitPhotoAdded() {},
+  emitPhotoHidden() {},
+  emitPhotoDeleted() {},
+  emitSettingsUpdated() {},
+  emitThemeUpdated() {},
+};
 
 export interface AppDeps {
   db: Db;
   config: Config;
+  realtime?: RealtimeEmitters;
 }
 
 /**
@@ -23,16 +35,18 @@ export interface AppDeps {
  * routers can reach them (and add `realtime`/repos) without changing this signature.
  */
 export function buildApp(deps: AppDeps): Express {
+  const { db, config, realtime = noopRealtime } = deps;
   const app = express();
   app.disable('x-powered-by');
 
   // Build repos and bootstrap admin password before mounting routes.
-  const settingsRepo = makeSettingsRepo(deps.db);
-  ensureAdminBootstrap(settingsRepo, deps.config);
-  const eventRepo = makeEventRepo(deps.db);
-  const themeRepo = makeThemeRepo(deps.db);
-  app.set('db', deps.db);
-  app.set('config', deps.config);
+  const settingsRepo = makeSettingsRepo(db);
+  ensureAdminBootstrap(settingsRepo, config);
+  const eventRepo = makeEventRepo(db);
+  const themeRepo = makeThemeRepo(db);
+  app.set('db', db);
+  app.set('config', config);
+  app.set('realtime', realtime);
   app.set('settingsRepo', settingsRepo);
   app.set('eventRepo', eventRepo);
   app.set('themeRepo', themeRepo);
@@ -44,7 +58,7 @@ export function buildApp(deps: AppDeps): Express {
   app.use('/api/health', healthRouter());
   app.use('/api/admin', makeAdminAuthRouter());
   app.use('/api/admin/events', requireAuth, makeAdminEventsRouter());
-  app.use('/media', mediaRouter(deps.config.dataDir));
+  app.use('/media', mediaRouter(config.dataDir));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
