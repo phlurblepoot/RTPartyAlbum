@@ -7,18 +7,25 @@ import {
 } from '../index.js';
 
 describe('DEFAULT_MOTION_CONFIG', () => {
-  it('has all four motion weights as positive numbers', () => {
+  it('has all seven motion weights as positive numbers', () => {
     const w = DEFAULT_MOTION_CONFIG.motionWeights;
-    expect(Object.keys(w).sort()).toEqual(['current', 'drift', 'mosaic', 'orbit']);
+    expect(Object.keys(w).sort()).toEqual(
+      ['bob', 'breathe', 'current', 'drift', 'mosaic', 'orbit', 'sway'],
+    );
     for (const v of Object.values(w)) {
       expect(typeof v).toBe('number');
       expect(v).toBeGreaterThan(0);
     }
   });
 
-  it('weights sum to the expected total (drift:5 + current:2 + orbit:1 + mosaic:2 = 10)', () => {
+  it('weights sum to the expected total (5+2+1+2+3+3+2 = 18)', () => {
     const sum = Object.values(DEFAULT_MOTION_CONFIG.motionWeights).reduce((a, b) => a + b, 0);
-    expect(sum).toBe(10);
+    expect(sum).toBe(18);
+  });
+
+  it('has a default resting-tilt range (±8°)', () => {
+    expect(DEFAULT_MOTION_CONFIG.tiltMinDeg).toBe(-8);
+    expect(DEFAULT_MOTION_CONFIG.tiltMaxDeg).toBe(8);
   });
 
   it('has all five enter-animation weights', () => {
