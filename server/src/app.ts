@@ -42,6 +42,10 @@ export function buildApp(deps: AppDeps): Express {
   const { db, config, realtime = noopRealtime } = deps;
   const app = express();
   app.disable('x-powered-by');
+  // Trust the first proxy hop (reverse proxy on Unraid/Docker) so `req.ip`
+  // reflects the real client address rather than the proxy's. This keeps the
+  // login rate-limiter per-client and records true client IPs in photo audit data.
+  app.set('trust proxy', 1);
 
   // Build repos and bootstrap admin password before mounting routes.
   const settingsRepo = makeSettingsRepo(db);
