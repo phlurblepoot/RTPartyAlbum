@@ -1,24 +1,18 @@
 import type {
   EventSummary, EventDetail, PhotoAdmin, MotionConfig, Theme, ThemeTokens, MediaLimits,
 } from '@rtpa/shared';
+import { ApiError } from '../api/client';
 
-export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-  }
-}
+export { ApiError } from '../api/client';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 async function request<T>(url: string, init: RequestInit, parse: boolean): Promise<T> {
   const res = await fetch(url, { credentials: 'include', ...init });
   if (!res.ok) {
-    let msg = res.statusText;
-    try { msg = (await res.text()) || msg; } catch { /* ignore */ }
-    throw new ApiError(res.status, msg);
+    let bodyText = '';
+    try { bodyText = await res.text(); } catch { /* ignore */ }
+    throw new ApiError(res.status, bodyText);
   }
   if (!parse) return undefined as T;
   return (await res.json()) as T;
@@ -30,7 +24,7 @@ function getJson<T>(url: string): Promise<T> {
 function postJson<T>(url: string, body?: unknown): Promise<T> {
   return request<T>(url, { method: 'POST', headers: JSON_HEADERS, body: body === undefined ? undefined : JSON.stringify(body) }, true);
 }
-function postNoBody(url: string, body?: unknown): Promise<void> {
+function postVoid(url: string, body?: unknown): Promise<void> {
   return request<void>(url, { method: 'POST', headers: JSON_HEADERS, body: body === undefined ? undefined : JSON.stringify(body) }, false);
 }
 function putJson<T>(url: string, body: unknown): Promise<T> {
@@ -47,8 +41,8 @@ export interface SettingsDto {
 
 export const adminApi = {
   // Auth
-  login: (password: string) => postNoBody('/api/admin/login', { password }),
-  logout: () => postNoBody('/api/admin/logout'),
+  login: (password: string) => postVoid('/api/admin/login', { password }),
+  logout: () => postVoid('/api/admin/logout'),
   me: () => getJson<{ ok: true }>('/api/admin/me'),
 
   // Events
@@ -68,7 +62,7 @@ export const adminApi = {
 
   // Photos
   listPhotos: (eventId: string) => getJson<PhotoAdmin[]>(`/api/admin/events/${eventId}/photos`),
-  hidePhoto: (id: string, hidden: boolean) => postNoBody(`/api/admin/photos/${id}/hide`, { hidden }),
+  hidePhoto: (id: string, hidden: boolean) => postVoid(`/api/admin/photos/${id}/hide`, { hidden }),
   deletePhoto: (id: string) => del(`/api/admin/photos/${id}`),
 
   // Themes
@@ -83,7 +77,7 @@ export const adminApi = {
   getSettings: () => getJson<SettingsDto>('/api/admin/settings'),
   saveSettings: (input: Partial<SettingsDto>) => putJson<SettingsDto>('/api/admin/settings', input),
   changePassword: (current: string, next: string) =>
-    postNoBody('/api/admin/password', { current, next }),
+    postVoid('/api/admin/password', { current, next }),
 };
 
 export type AdminApi = typeof adminApi;

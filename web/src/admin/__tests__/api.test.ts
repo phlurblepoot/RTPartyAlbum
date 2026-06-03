@@ -135,4 +135,14 @@ describe('adminApi', () => {
     fetchMock.mockResolvedValueOnce(new Response('nope', { status: 401 }));
     await expect(adminApi.me()).rejects.toMatchObject({ status: 401 });
   });
+
+  it('parses server error code into ApiError.code via shared class', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('{"error":"unauthorized"}', { status: 401 }),
+    );
+    await expect(adminApi.me()).rejects.toMatchObject({
+      status: 401,
+      code: 'unauthorized',
+    });
+  });
 });
