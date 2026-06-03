@@ -33,7 +33,9 @@ export async function processImage(
 
   // Display: auto-orient, strip metadata (sharp drops EXIF by default; rotate() bakes
   // orientation into pixels so we can safely strip), fit inside 1600x1600 without enlarging.
-  const displayBuffer = await sharp(inputBuffer)
+  // resolveWithObject gives guaranteed numeric output dims (info.width/height) so we never
+  // have to fall back to 0 (which would silently corrupt the photos table's NOT NULL dims).
+  const { data: displayBuffer, info } = await sharp(inputBuffer)
     .rotate() // auto-orient from EXIF, then orientation is baked in
     .resize({
       width: DISPLAY_MAX,
@@ -42,10 +44,15 @@ export async function processImage(
       withoutEnlargement: true,
     })
     .jpeg({ quality: 82 })
-    .toBuffer();
-  await fs.writeFile(displayPath, displayBuffer);
+    .toBuffer({ resolveWithObject: true });
 
-  const displayMeta = await sharp(displayBuffer).metadata();
+  // Belt-and-suspenders: surface a failure to the route (→ 400/skip) instead of
+  // writing zero dimensions if sharp ever reports missing output dims.
+  if (!info.width || !info.height) {
+    throw new Error('imageService: failed to determine processed image dimensions');
+  }
+
+  await fs.writeFile(displayPath, displayBuffer);
 
   // Thumb derived from the display buffer (already oriented + stripped).
   const thumbBuffer = await sharp(displayBuffer)
@@ -62,7 +69,7 @@ export async function processImage(
   return {
     displayPath,
     thumbPath,
-    width: displayMeta.width ?? 0,
-    height: displayMeta.height ?? 0,
+    width: info.width,
+    height: info.height,
   };
 }

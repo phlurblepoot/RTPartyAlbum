@@ -32,6 +32,8 @@ describe('imageService.processImage', () => {
     // returned width/height are the DISPLAY dims
     expect(result.width).toBe(dmeta.width);
     expect(result.height).toBe(dmeta.height);
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(0);
   });
 
   it('does not enlarge images smaller than the caps', async () => {
@@ -41,5 +43,13 @@ describe('imageService.processImage', () => {
     const result = await processImage(input, 'photo-img-2', dataDir);
     expect(result.width).toBe(300);
     expect(result.height).toBe(200);
+  });
+
+  it('rejects on input that is not a decodable image', async () => {
+    const dataDir = await makeTmpDir();
+    dirs.push(dataDir);
+    await expect(
+      processImage(Buffer.from('notanimage'), 'pX', dataDir),
+    ).rejects.toThrow();
   });
 });
