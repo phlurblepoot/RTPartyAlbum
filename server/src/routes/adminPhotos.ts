@@ -16,7 +16,7 @@ export function makeAdminPhotosRouter(): Router {
     const photoRepo = req.app.get('photoRepo') as PhotoRepo;
     const event = eventRepo.getById(req.params.id);
     if (!event) {
-      res.status(404).json({ error: 'event not found' });
+      res.status(404).json({ error: 'not_found' });
       return;
     }
     const photos = photoRepo.listForEventAdmin(event.id);
