@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { DEFAULT_THEME_ID, DEFAULT_MOTION_CONFIG } from '@rtpa/shared';
+import QRCode from 'qrcode';
+import { DEFAULT_THEME_ID, DEFAULT_MOTION_CONFIG, SETTINGS_KEYS } from '@rtpa/shared';
 import type { EventRepo } from '../db/repositories/eventRepo.js';
 import type { ThemeRepo } from '../db/repositories/themeRepo.js';
+import type { SettingsRepo } from '../db/repositories/settingsRepo.js';
 import type { RealtimeEmitters } from '../realtime/realtime.js';
 import { generateUniqueCode } from '../services/eventCode.js';
 
@@ -154,6 +156,25 @@ export function makeAdminEventsRouter(): Router {
     eventRepo.setTheme(req.params.id, theme.id);
     realtime.emitThemeUpdated(event.code, theme);
     res.json(eventRepo.getById(req.params.id));
+  });
+
+  router.get('/:id/qr', async (req, res, next) => {
+    try {
+      const eventRepo = req.app.get('eventRepo') as EventRepo;
+      const settingsRepo = req.app.get('settingsRepo') as SettingsRepo;
+      const event = eventRepo.getById(req.params.id);
+      if (!event) {
+        res.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const baseUrl = (settingsRepo.get(SETTINGS_KEYS.publicBaseUrl) ?? '').replace(/\/+$/, '');
+      const url = `${baseUrl}/e/${event.code}`;
+      const png = await QRCode.toBuffer(url, { type: 'png', width: 512, margin: 2 });
+      res.setHeader('Content-Type', 'image/png');
+      res.send(png);
+    } catch (err) {
+      next(err);
+    }
   });
 
   return router;
