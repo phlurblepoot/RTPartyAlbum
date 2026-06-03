@@ -74,6 +74,30 @@ describe('admin themes CRUD', () => {
     expect(res.status).toBe(204);
   });
 
+  it('refuses to edit a preset → 409 and leaves it unchanged', async () => {
+    const { app } = ctx();
+    const agent = await authed(app);
+    const before = (await agent.get('/api/admin/themes')).body.find(
+      (t: { id: string }) => t.id === DEFAULT_THEME_ID,
+    );
+    const res = await agent.put(`/api/admin/themes/${DEFAULT_THEME_ID}`).send({ name: 'Hacked' });
+    expect(res.status).toBe(409);
+    const after = (await agent.get('/api/admin/themes')).body.find(
+      (t: { id: string }) => t.id === DEFAULT_THEME_ID,
+    );
+    expect(after.name).toBe(before.name);
+    expect(after.name).not.toBe('Hacked');
+  });
+
+  it('rejects an over-long name (121 chars) on create → 400', async () => {
+    const { app } = ctx();
+    const agent = await authed(app);
+    const res = await agent
+      .post('/api/admin/themes')
+      .send({ name: 'x'.repeat(121), tokens });
+    expect(res.status).toBe(400);
+  });
+
   it('refuses to delete a preset → 409', async () => {
     const { app } = ctx();
     const agent = await authed(app);

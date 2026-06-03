@@ -24,9 +24,9 @@ const themeTokensSchema = z.object({
   accent: z.string(),
 });
 
-const createSchema = z.object({ name: z.string().trim().min(1), tokens: themeTokensSchema });
+const createSchema = z.object({ name: z.string().trim().min(1).max(120), tokens: themeTokensSchema });
 const updateSchema = z.object({
-  name: z.string().trim().min(1).optional(),
+  name: z.string().trim().min(1).max(120).optional(),
   tokens: themeTokensSchema.optional(),
 });
 
@@ -55,6 +55,15 @@ export function makeAdminThemesRouter(): Router {
       return;
     }
     const themeRepo = req.app.get('themeRepo') as ThemeRepo;
+    const existing = themeRepo.getById(req.params.id);
+    if (!existing) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    if (existing.isPreset) {
+      res.status(409).json({ error: 'preset_not_editable' });
+      return;
+    }
     const updated = themeRepo.update(req.params.id, parsed.data);
     if (!updated) {
       res.status(404).json({ error: 'not_found' });
