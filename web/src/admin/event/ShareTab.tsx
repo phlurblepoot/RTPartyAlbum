@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../api';
 import type { EventDetail } from '@rtpa/shared';
 
 export function ShareTab({ event }: { event: EventDetail }) {
   const qc = useQueryClient();
+  const [copied, setCopied] = useState(false);
   const { data: settings } = useQuery({
     queryKey: ['admin', 'settings'],
     queryFn: () => adminApi.getSettings(),
@@ -23,8 +25,10 @@ export function ShareTab({ event }: { event: EventDetail }) {
     onSuccess: () => { void invalidateEvent(); },
   });
 
-  function copyLink() {
-    void navigator.clipboard?.writeText(uploadLink);
+  async function copyLink() {
+    await navigator.clipboard?.writeText(uploadLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -33,7 +37,7 @@ export function ShareTab({ event }: { event: EventDetail }) {
       <img src={adminApi.qrUrl(event.id)} alt={`QR code for ${event.name}`} />
       <button type="button" onClick={() => window.print()}>Print</button>
       <p className="upload-link">{uploadLink}</p>
-      <button type="button" onClick={copyLink}>Copy link</button>
+      <button type="button" onClick={() => void copyLink()}>{copied ? 'Copied!' : 'Copy link'}</button>
 
       <div className="upload-toggle">
         {event.uploadEnabled ? (

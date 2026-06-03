@@ -53,6 +53,24 @@ describe('ShareTab', () => {
     await waitFor(() => expect(adminApi.setUploadState).toHaveBeenCalledWith('e1', false));
   });
 
+  it('copy button writes link to clipboard and shows Copied!', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderWithProviders(<ShareTab event={event} />);
+    await screen.findByText('https://party.test/e/ABCD');
+    await userEvent.click(screen.getByRole('button', { name: /copy link/i }));
+    expect(writeText).toHaveBeenCalledWith('https://party.test/e/ABCD');
+    expect(await screen.findByText('Copied!')).toBeInTheDocument();
+  });
+
+  it('resume toggle calls setUploadState with true', async () => {
+    (adminApi.setUploadState as ReturnType<typeof vi.fn>).mockResolvedValue({ ...event, uploadEnabled: true });
+    renderWithProviders(<ShareTab event={{ ...event, uploadEnabled: false }} />);
+    await screen.findByText('https://party.test/e/ABCD');
+    await userEvent.click(screen.getByRole('button', { name: /resume uploads/i }));
+    await waitFor(() => expect(adminApi.setUploadState).toHaveBeenCalledWith('e1', true));
+  });
+
   it('end event confirms then calls endEvent', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderWithProviders(<ShareTab event={event} />);
