@@ -17,10 +17,13 @@ interface Info {
 }
 
 const MOTION_INFO: Record<MotionStyle, Info> = {
-  drift: { label: 'Drift', hint: 'Gentle aimless wandering' },
-  current: { label: 'Current', hint: 'Slow sideways sweep, like a stream' },
+  drift: { label: 'Drift', hint: 'Gentle aimless diagonal wandering' },
+  current: { label: 'Current', hint: 'Long sideways sweep, like a stream' },
   orbit: { label: 'Orbit', hint: 'Circles around its spot (stays upright)' },
   mosaic: { label: 'Mosaic', hint: 'Tight, snappy grid-like steps' },
+  sway: { label: 'Sway', hint: 'Wide, elegant pendulum side-to-side' },
+  bob: { label: 'Bob', hint: 'Gentle vertical float, like calm water' },
+  breathe: { label: 'Breathe', hint: 'Slow scale pulse — the photo breathes' },
 };
 const ENTER_INFO: Record<EnterAnimation, Info> = {
   flyInEdge: { label: 'Fly in', hint: 'Slides in from the side' },
@@ -288,6 +291,44 @@ export function DisplayTab({ event }: { event: EventDetail }) {
           onChange={(e) => update({ ...config, sizeVariance: Number(e.target.value) })}
         />
       </div>
+
+      <fieldset>
+        <legend>Photo tilt</legend>
+        <span className="field-hint">
+          Photos always enter upright; each rests at a small random angle in this range.
+          Set both to 0 for perfectly straight photos.
+        </span>
+        <div className="control-row">
+          <div className="control-row__head">
+            <span className="control-row__name">Min tilt</span>
+            <span className="control-row__value">{config.tiltMinDeg}°</span>
+          </div>
+          <input
+            type="range"
+            min={-45}
+            max={45}
+            step={1}
+            value={config.tiltMinDeg}
+            aria-label="min tilt"
+            onChange={(e) => update({ ...config, tiltMinDeg: Number(e.target.value) })}
+          />
+        </div>
+        <div className="control-row">
+          <div className="control-row__head">
+            <span className="control-row__name">Max tilt</span>
+            <span className="control-row__value">{config.tiltMaxDeg}°</span>
+          </div>
+          <input
+            type="range"
+            min={-45}
+            max={45}
+            step={1}
+            value={config.tiltMaxDeg}
+            aria-label="max tilt"
+            onChange={(e) => update({ ...config, tiltMaxDeg: Number(e.target.value) })}
+          />
+        </div>
+      </fieldset>
     </div>
   );
 }

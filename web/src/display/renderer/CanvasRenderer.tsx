@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { MotionConfig, ThemeTokens } from '@rtpa/shared';
 import type { Tile as TileModel } from '../rotationEngine';
@@ -40,6 +41,83 @@ export function tilePosition(tile: TileModel, captionEnabled: boolean) {
   return { size, left, top };
 }
 
+interface CanvasTileProps {
+  tile: TileModel;
+  theme: ThemeTokens;
+  speed: number;
+  captionEnabled: boolean;
+  reducedMotion: boolean;
+}
+
+/**
+ * A single canvas tile. Memoized so the once-per-tick re-render of the parent does
+ * NOT re-render unchanged tiles — that re-render was handing framer-motion a fresh
+ * `animate` keyframe object every second, restarting the long glide loop so photos
+ * only ever played its first second ("floating in place"). With stable props the
+ * glide now runs uninterrupted, and each motion style's distinct path is visible.
+ */
+const CanvasTile = memo(function CanvasTile({
+  tile,
+  theme,
+  speed,
+  captionEnabled,
+  reducedMotion,
+}: CanvasTileProps) {
+  const enter = enterVariant(tile.enter);
+  const leave = leaveVariant(tile.leave);
+  const glide = motionPropsFor(tile.motion, speed);
+  const { size, left, top } = tilePosition(tile, captionEnabled);
+  const positionStyle = {
+    position: 'absolute' as const,
+    left,
+    top,
+    width: `${size}px`,
+    transformOrigin: 'center center' as const,
+  };
+
+  if (reducedMotion) {
+    // Calm path: a gentle fade to/from its resting place, static tilt, no glide loop.
+    return (
+      <motion.div
+        data-tile-id={tile.photo.id}
+        style={positionStyle}
+        initial={{ opacity: 0 }}
+        animate={tile.leaving ? { opacity: 0 } : { opacity: 1, rotate: tile.rotation }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Tile tile={tile} theme={theme} />
+      </motion.div>
+    );
+  }
+
+  return (
+    // OUTER: owns positioning and the one-shot ENTER (initial→animate, always
+    // upright) and LEAVE. The leave plays as soon as the engine flags the tile
+    // `leaving`, with `exit` as the fallback for hard removals (hide/delete).
+    <motion.div
+      data-tile-id={tile.photo.id}
+      style={positionStyle}
+      initial={enter.initial}
+      animate={tile.leaving ? leave.exit : enter.animate}
+      exit={leave.exit}
+      transition={tile.leaving ? undefined : enter.transition}
+    >
+      {/* MIDDLE: continuous GLIDE loop (the motion style). Composes with the parent
+          instead of colliding. Paused (and scale reset) while leaving. */}
+      <motion.div
+        animate={tile.leaving ? { x: 0, y: 0, scale: 1 } : glide.animate}
+        transition={tile.leaving ? { duration: 0.3 } : glide.transition}
+      >
+        {/* INNERMOST: static per-tile resting tilt (small, never inverted). */}
+        <div style={{ transform: `rotate(${tile.rotation}deg)` }}>
+          <Tile tile={tile} theme={theme} />
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+});
+
 export function CanvasRenderer({ tiles, config, theme, reducedMotion = false }: CanvasRendererProps) {
   const captionEnabled = theme.caption.enabled;
 
@@ -49,64 +127,16 @@ export function CanvasRenderer({ tiles, config, theme, reducedMotion = false }: 
       style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}
     >
       <AnimatePresence>
-        {tiles.map((tile) => {
-          const enter = enterVariant(tile.enter);
-          const leave = leaveVariant(tile.leave);
-          const glide = motionPropsFor(tile.motion, config.speed);
-          const { size, left, top } = tilePosition(tile, captionEnabled);
-
-          if (reducedMotion) {
-            // Calm path: a gentle fade to/from its resting place, static tilt,
-            // no glide loop. `exit` + the leaving-driven fade ensure removal is a
-            // soft fade rather than an instant pop.
-            return (
-              <motion.div
-                key={tile.photo.id}
-                data-tile-id={tile.photo.id}
-                style={{ position: 'absolute', left, top, width: `${size}px`, transformOrigin: 'center center' }}
-                initial={{ opacity: 0 }}
-                animate={tile.leaving ? { opacity: 0 } : { opacity: 1, rotate: tile.rotation }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Tile tile={tile} theme={theme} />
-              </motion.div>
-            );
-          }
-
-          return (
-            // OUTER: the keyed AnimatePresence child. Owns positioning and the
-            // one-shot ENTER (initial→animate) and LEAVE. The leave plays as soon
-            // as the engine flags the tile `leaving` (driving `animate` to the
-            // leave target), with `exit` as a fallback for hard removals (a photo
-            // hidden/deleted, which drops straight out of the array). No glide
-            // here, so the entrance settles and stays put instead of looping.
-            <motion.div
-              key={tile.photo.id}
-              data-tile-id={tile.photo.id}
-              style={{ position: 'absolute', left, top, width: `${size}px`, transformOrigin: 'center center' }}
-              initial={enter.initial}
-              animate={tile.leaving ? leave.exit : enter.animate}
-              exit={leave.exit}
-              transition={tile.leaving ? undefined : enter.transition}
-            >
-              {/* MIDDLE: continuous GLIDE loop (x/y wander or circular orbit). Its
-                  transforms compose with the parent's instead of colliding, so the
-                  infinite repeat never overrides the entrance/exit. Paused while
-                  leaving so the exit reads cleanly. */}
-              <motion.div
-                animate={tile.leaving ? { x: 0, y: 0 } : glide.animate}
-                transition={tile.leaving ? { duration: 0.3 } : glide.transition}
-              >
-                {/* INNERMOST: static per-tile tilt (small, never inverted). Lives on
-                    a plain div so it neither fights the glide nor the entrance. */}
-                <div style={{ transform: `rotate(${tile.rotation}deg)` }}>
-                  <Tile tile={tile} theme={theme} />
-                </div>
-              </motion.div>
-            </motion.div>
-          );
-        })}
+        {tiles.map((tile) => (
+          <CanvasTile
+            key={tile.photo.id}
+            tile={tile}
+            theme={theme}
+            speed={config.speed}
+            captionEnabled={captionEnabled}
+            reducedMotion={reducedMotion}
+          />
+        ))}
       </AnimatePresence>
     </div>
   );

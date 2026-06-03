@@ -20,7 +20,7 @@ export function makePhoto(id: string, overrides: Partial<Photo> = {}): Photo {
 }
 
 export const testConfig: MotionConfig = {
-  motionWeights: { drift: 5, current: 2, orbit: 1, mosaic: 2 },
+  motionWeights: { drift: 5, current: 2, orbit: 1, mosaic: 2, sway: 0, bob: 0, breathe: 0 },
   speed: 1,
   maxOnCanvas: 24,
   dwell: { enabled: true, durationMs: 45000, varianceMs: 15000 },
@@ -28,6 +28,8 @@ export const testConfig: MotionConfig = {
   leaveWeights: { driftOffEdge: 3, shrinkFade: 3, spinOut: 1, slideAway: 2 },
   baseSize: 220,
   sizeVariance: 0.4,
+  tiltMinDeg: -8,
+  tiltMaxDeg: 8,
 };
 
 // Returns a fixed sequence rng, looping.

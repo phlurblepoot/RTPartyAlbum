@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { motionPropsFor, motionTravelPx } from '../motion';
 
-const styles = ['drift', 'current', 'orbit', 'mosaic'] as const;
+const styles = ['drift', 'current', 'orbit', 'mosaic', 'sway', 'bob', 'breathe'] as const;
 
 // The returns are typed with framer-motion's union types (TargetAndTransition /
 // Transition); reading specific keyframe/timing fields in tests needs a loose view.
@@ -48,6 +48,20 @@ describe('motionPropsFor', () => {
     for (const style of styles) {
       expect(motionTravelPx(style)).toBeGreaterThan(0);
     }
+  });
+
+  it('each style has its own characteristic motion (not all the same)', () => {
+    // sway is primarily horizontal, bob primarily vertical, breathe scales.
+    const sway = animateOf('sway', 1);
+    expect(Array.isArray(sway.x)).toBe(true);
+    const bob = animateOf('bob', 1);
+    expect(Array.isArray(bob.y)).toBe(true);
+    const breathe = animateOf('breathe', 1);
+    expect(Array.isArray(breathe.scale)).toBe(true);
+
+    // No two styles share an identical animate target (they are genuinely distinct).
+    const sigs = styles.map((s) => JSON.stringify(animateOf(s, 1)));
+    expect(new Set(sigs).size).toBe(styles.length);
   });
 
   it('scales duration inversely with speed', () => {

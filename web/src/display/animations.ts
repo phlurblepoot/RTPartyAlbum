@@ -31,11 +31,12 @@ export function enterVariant(key: EnterAnimation): EnterVariant {
         transition: { duration: 0.7, ease: 'easeOut' },
       };
     case 'spinIn':
-      // Capped below 180° so the photo never passes through a fully upside-down frame.
+      // Photos must enter RIGHT SIDE UP — no spin. A lively scale-up-with-overshoot
+      // from slightly below, settling upright (the resting tilt is applied separately).
       return {
-        initial: { opacity: 0, rotate: -120, scale: 0.5 },
-        animate: { opacity: 1, rotate: 0, scale: 1 },
-        transition: { type: 'spring', stiffness: 140, damping: 14 },
+        initial: { opacity: 0, scale: 0.4, y: 28 },
+        animate: { opacity: 1, scale: 1, y: 0 },
+        transition: { type: 'spring', stiffness: 200, damping: 16 },
       };
     case 'dropBounce':
       return {

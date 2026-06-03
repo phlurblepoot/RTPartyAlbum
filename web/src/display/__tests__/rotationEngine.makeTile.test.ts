@@ -31,6 +31,17 @@ describe('makeTile', () => {
     expect(tile.dwellMs).toBeCloseTo(60000); // 45000 + (1*2-1)*15000
   });
 
+  it('draws the resting tilt from the configured [min,max] range', () => {
+    const cfg = { ...testConfig, tiltMinDeg: 2, tiltMaxDeg: 10 };
+    // rotation is the 7th draw (index 6): min + draw*(max-min)
+    const lo = makeTile(makePhoto('a'), cfg, 0, seqRng([0, 0, 0, 0.5, 0.5, 0.5, 0, 0.5]));
+    const mid = makeTile(makePhoto('b'), cfg, 0, seqRng([0, 0, 0, 0.5, 0.5, 0.5, 0.5, 0.5]));
+    const hi = makeTile(makePhoto('c'), cfg, 0, seqRng([0, 0, 0, 0.5, 0.5, 0.5, 1, 0.5]));
+    expect(lo.rotation).toBeCloseTo(2); // min
+    expect(mid.rotation).toBeCloseTo(6); // midpoint
+    expect(hi.rotation).toBeCloseTo(10); // max
+  });
+
   it('uses Infinity dwell when dwell disabled', () => {
     const cfg = { ...testConfig, dwell: { ...testConfig.dwell, enabled: false } };
     const tile = makeTile(makePhoto('d'), cfg, 0, constRng(0.5));

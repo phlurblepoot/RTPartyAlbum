@@ -1,7 +1,14 @@
 export type MediaType = 'image' | 'video';
 export type EventStatus = 'active' | 'paused' | 'ended';
 
-export type MotionStyle = 'drift' | 'current' | 'orbit' | 'mosaic';
+export type MotionStyle =
+  | 'drift'
+  | 'current'
+  | 'orbit'
+  | 'mosaic'
+  | 'sway'
+  | 'bob'
+  | 'breathe';
 export type EnterAnimation = 'flyInEdge' | 'scalePop' | 'fadeGrow' | 'spinIn' | 'dropBounce';
 export type LeaveAnimation = 'driftOffEdge' | 'shrinkFade' | 'spinOut' | 'slideAway';
 
@@ -14,6 +21,8 @@ export interface MotionConfig {
   leaveWeights: Record<LeaveAnimation, number>;
   baseSize: number;         // px, tile longest edge baseline
   sizeVariance: number;     // 0..1
+  tiltMinDeg: number;       // resting tilt range min (deg), e.g. -8
+  tiltMaxDeg: number;       // resting tilt range max (deg), e.g. 8
 }
 
 export interface ThemeTokens {

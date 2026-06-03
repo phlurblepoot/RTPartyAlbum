@@ -17,6 +17,9 @@ const motionConfigSchema = z.object({
     current: z.number().nonnegative(),
     orbit: z.number().nonnegative(),
     mosaic: z.number().nonnegative(),
+    sway: z.number().nonnegative(),
+    bob: z.number().nonnegative(),
+    breathe: z.number().nonnegative(),
   }),
   speed: z.number().min(0.25).max(3),
   maxOnCanvas: z.number().int().positive(),
@@ -40,6 +43,8 @@ const motionConfigSchema = z.object({
   }),
   baseSize: z.number().positive().max(800),
   sizeVariance: z.number().min(0).max(1),
+  tiltMinDeg: z.number().min(-45).max(45),
+  tiltMaxDeg: z.number().min(-45).max(45),
 });
 
 const motionSchema = z.object({ motionConfig: motionConfigSchema });

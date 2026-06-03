@@ -62,11 +62,101 @@ export function makeTile(photo: Photo, config: MotionConfig, now: number, rng: R
   const size = computeSize(config.baseSize, config.sizeVariance, rng);
   const x = rng();
   const y = rng();
-  const rotation = (rng() * 2 - 1) * MAX_TILE_ROTATION_DEG;
+  // Resting tilt is a small signed angle in the admin-configured [min,max] range,
+  // so photos sit at a slight angle but always upright (never spun/inverted).
+  const rotation = config.tiltMinDeg + rng() * (config.tiltMaxDeg - config.tiltMinDeg);
   const dwellMs = config.dwell.enabled
     ? config.dwell.durationMs + (rng() * 2 - 1) * config.dwell.varianceMs
     : Infinity;
   return { photo, motion, enter, leave, size, x, y, rotation, bornAt: now, dwellMs, leaving: false };
+}
+
+// ---- Collision-aware placement -------------------------------------------------
+// New photos are placed where they don't cover existing ones. Placement math runs
+// in a normalized [0,1] square against a reference canvas (matching the renderer's
+// x/y → safe-band mapping closely enough to spread tiles apart in practice).
+const PLACE_REF_W = 1920;
+const PLACE_REF_H = 1080;
+const PLACE_CANDIDATES = 32;
+
+interface Rect { l: number; t: number; r: number; b: number }
+
+function tileFrac(t: Tile): { w: number; h: number } {
+  const w = Math.min(1, t.size / PLACE_REF_W);
+  const aspect = t.photo.width > 0 && t.photo.height > 0 ? t.photo.height / t.photo.width : 1;
+  const h = Math.min(1, (t.size * aspect) / PLACE_REF_H);
+  return { w, h };
+}
+
+function rectAt(x: number, y: number, w: number, h: number): Rect {
+  const l = x * (1 - w);
+  const t = y * (1 - h);
+  return { l, t, r: l + w, b: t + h };
+}
+
+function rectOf(tile: Tile): Rect {
+  const { w, h } = tileFrac(tile);
+  return rectAt(tile.x, tile.y, w, h);
+}
+
+function overlapArea(a: Rect, b: Rect): number {
+  const ox = Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l));
+  const oy = Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
+  return ox * oy;
+}
+
+function centerDist(a: Rect, b: Rect): number {
+  const dx = (a.l + a.r) / 2 - (b.l + b.r) / 2;
+  const dy = (a.t + a.b) / 2 - (b.t + b.b) / 2;
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Choose an on-canvas position (normalized x/y) for a newly admitted tile:
+ *  1. Prefer a spot that overlaps NOTHING; among those, the one with the most
+ *     empty space around it (largest distance to its nearest neighbour).
+ *  2. If every candidate overlaps, pick the one with the least overlap — weighted
+ *     so that covering NEWER photos is penalised far more than covering OLDER ones
+ *     (a freshly-arrived photo should not be hidden by the next arrival).
+ */
+export function placeTile(existing: Tile[], newTile: Tile, rng: Rng): { x: number; y: number } {
+  if (existing.length === 0) return { x: newTile.x, y: newTile.y };
+
+  const { w, h } = tileFrac(newTile);
+  // Oldest first -> weight 1; newest -> highest weight (most expensive to cover).
+  const sorted = [...existing].sort((a, b) => a.bornAt - b.bornAt);
+  const weighted = sorted.map((tile, i) => ({ rect: rectOf(tile), weight: i + 1 }));
+
+  let best = { x: newTile.x, y: newTile.y };
+  let bestEmptyGap = -Infinity; // for zero-overlap candidates: maximize this
+  let bestCost = Infinity; // for overlapping candidates: minimize this
+  let foundEmpty = false;
+
+  for (let i = 0; i < PLACE_CANDIDATES; i += 1) {
+    const x = rng();
+    const y = rng();
+    const cand = rectAt(x, y, w, h);
+
+    let cost = 0;
+    let nearest = Infinity;
+    for (const e of weighted) {
+      cost += overlapArea(cand, e.rect) * e.weight;
+      nearest = Math.min(nearest, centerDist(cand, e.rect));
+    }
+
+    if (cost === 0) {
+      foundEmpty = true;
+      if (nearest > bestEmptyGap) {
+        bestEmptyGap = nearest;
+        best = { x, y };
+      }
+    } else if (!foundEmpty && cost < bestCost) {
+      bestCost = cost;
+      best = { x, y };
+    }
+  }
+
+  return best;
 }
 
 export function enqueueUpload(state: EngineState, photo: Photo): EngineState {
@@ -184,7 +274,13 @@ export function tick(state: EngineState, now: number, rng: Rng): EngineState {
   // Note: lastShownAt is bounded by album size (one entry per distinct photo ever
   // shown), so it is intentionally NOT pruned — unlike leftAt, which is pruned above.
   const admit = (photo: Photo) => {
-    const tile = makeTile(photo, config, now, rng);
+    let tile = makeTile(photo, config, now, rng);
+    // Place the new tile where it covers existing photos the least (preferring
+    // empty space; covering the oldest first when overlap is unavoidable).
+    if (onCanvas.length > 0) {
+      const { x, y } = placeTile(onCanvas, tile, rng);
+      tile = { ...tile, x, y };
+    }
     onCanvas = [...onCanvas, tile];
     lastShownAt = { ...lastShownAt, [photo.id]: now };
   };
