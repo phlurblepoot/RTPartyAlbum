@@ -19,6 +19,22 @@ const themeTokensSchema = z.object({
     enabled: z.boolean(),
     bg: z.string(),
     color: z.string(),
+    // New layout fields are optional so themes saved before they existed (and the
+    // built-in presets) still validate; the client resolves defaults for missing ones.
+    position: z.enum(['below', 'above', 'inside', 'bubble']).optional(),
+    align: z.enum(['left', 'center', 'right']).optional(),
+    offsetPx: z.number().min(-150).max(150).optional(),
+    insideEdge: z.enum(['top', 'bottom']).optional(),
+    bubble: z
+      .object({
+        xPct: z.number().min(0).max(100),
+        yPct: z.number().min(0).max(100),
+        rotation: z.number().min(-45).max(45),
+        radius: z.number().min(0).max(60),
+        borderWidth: z.number().min(0).max(20),
+        borderColor: z.string(),
+      })
+      .optional(),
   }),
   font: z.string(),
   accent: z.string(),

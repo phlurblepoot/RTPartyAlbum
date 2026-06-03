@@ -25,6 +25,19 @@ export interface MotionConfig {
   tiltMaxDeg: number;       // resting tilt range max (deg), e.g. 8
 }
 
+export type CaptionPosition = 'below' | 'above' | 'inside' | 'bubble';
+export type CaptionAlign = 'left' | 'center' | 'right';
+export type CaptionInsideEdge = 'top' | 'bottom';
+
+export interface CaptionBubble {
+  xPct: number;        // 0..100 horizontal anchor over the photo
+  yPct: number;        // 0..100 vertical anchor over the photo
+  rotation: number;    // -45..45 deg
+  radius: number;      // px corner radius (0 = sharp tag)
+  borderWidth: number; // px
+  borderColor: string;
+}
+
 export interface ThemeTokens {
   background: { type: 'solid' | 'gradient' | 'image'; value: string };
   ambient: 'none' | 'bokeh' | 'particles' | 'glow';
@@ -35,7 +48,18 @@ export interface ThemeTokens {
     radius: number;
     shadow: boolean;
   };
-  caption: { enabled: boolean; bg: string; color: string };
+  // New caption layout fields are optional so themes saved before they existed
+  // (and the built-in presets) keep working; consumers resolve defaults.
+  caption: {
+    enabled: boolean;
+    bg: string;
+    color: string;
+    position?: CaptionPosition; // default 'below'
+    align?: CaptionAlign;       // default 'left' (below/above/inside)
+    offsetPx?: number;          // fine horizontal nudge, default 0
+    insideEdge?: CaptionInsideEdge; // default 'bottom' (position 'inside')
+    bubble?: CaptionBubble;
+  };
   font: string;
   accent: string;
 }

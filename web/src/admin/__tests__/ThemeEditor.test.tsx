@@ -47,6 +47,18 @@ describe('ThemeEditor', () => {
     expect(onSaved).toHaveBeenCalled();
   });
 
+  it('shows alignment for bar captions and reveals bubble controls for the bubble position', async () => {
+    renderWithProviders(<ThemeEditor theme={custom} onSaved={vi.fn()} />);
+    // Default (below) -> alignment visible, bubble controls hidden.
+    expect(screen.getByLabelText(/caption alignment/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/bubble rotation/i)).not.toBeInTheDocument();
+    // Switch to bubble -> bubble controls appear, alignment goes away.
+    fireEvent.change(screen.getByLabelText(/caption position/i), { target: { value: 'bubble' } });
+    expect(await screen.findByLabelText(/bubble rotation/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/bubble x/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/caption alignment/i)).not.toBeInTheDocument();
+  });
+
   it('preset shows Duplicate instead of Save, no Delete', () => {
     renderWithProviders(<ThemeEditor theme={preset} onSaved={vi.fn()} />);
     expect(screen.getByRole('button', { name: /duplicate/i })).toBeInTheDocument();

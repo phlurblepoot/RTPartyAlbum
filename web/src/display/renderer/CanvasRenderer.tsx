@@ -5,6 +5,7 @@ import type { Tile as TileModel } from '../rotationEngine';
 import { Tile } from '../Tile';
 import { motionPropsFor, motionTravelPx } from '../motion';
 import { enterVariant, leaveVariant } from '../animations';
+import { resolveCaption } from '../../lib/caption';
 
 interface CanvasRendererProps {
   tiles: TileModel[];
@@ -30,12 +31,12 @@ export const CAPTION_ALLOWANCE_PX = 34;
  * The vertical band reserves the tile's true rendered HEIGHT (width × aspect,
  * plus the caption), so portrait photos no longer overflow the bottom.
  */
-export function tilePosition(tile: TileModel, captionEnabled: boolean) {
+export function tilePosition(tile: TileModel, reserveCaptionHeight: boolean) {
   const size = Math.round(tile.size);
   const inset = EDGE_MARGIN_PX + motionTravelPx(tile.motion);
   const aspect =
     tile.photo.width > 0 && tile.photo.height > 0 ? tile.photo.height / tile.photo.width : 1;
-  const height = Math.round(size * aspect) + (captionEnabled ? CAPTION_ALLOWANCE_PX : 0);
+  const height = Math.round(size * aspect) + (reserveCaptionHeight ? CAPTION_ALLOWANCE_PX : 0);
   const left = `calc(${inset}px + ${tile.x} * (100% - ${size + inset * 2}px))`;
   const top = `calc(${inset}px + ${tile.y} * (100% - ${height + inset * 2}px))`;
   return { size, left, top };
@@ -45,7 +46,7 @@ interface CanvasTileProps {
   tile: TileModel;
   theme: ThemeTokens;
   speed: number;
-  captionEnabled: boolean;
+  reserveCaptionHeight: boolean;
   reducedMotion: boolean;
 }
 
@@ -60,13 +61,13 @@ const CanvasTile = memo(function CanvasTile({
   tile,
   theme,
   speed,
-  captionEnabled,
+  reserveCaptionHeight,
   reducedMotion,
 }: CanvasTileProps) {
   const enter = enterVariant(tile.enter);
   const leave = leaveVariant(tile.leave);
   const glide = motionPropsFor(tile.motion, speed);
-  const { size, left, top } = tilePosition(tile, captionEnabled);
+  const { size, left, top } = tilePosition(tile, reserveCaptionHeight);
   const positionStyle = {
     position: 'absolute' as const,
     left,
@@ -119,7 +120,10 @@ const CanvasTile = memo(function CanvasTile({
 });
 
 export function CanvasRenderer({ tiles, config, theme, reducedMotion = false }: CanvasRendererProps) {
-  const captionEnabled = theme.caption.enabled;
+  // Only below/above captions add vertical height to a tile; inside/bubble overlay
+  // the photo, so they don't need the safe-band height reservation.
+  const cap = resolveCaption(theme.caption);
+  const reserveCaptionHeight = cap.enabled && (cap.position === 'below' || cap.position === 'above');
 
   return (
     <div
@@ -133,7 +137,7 @@ export function CanvasRenderer({ tiles, config, theme, reducedMotion = false }: 
             tile={tile}
             theme={theme}
             speed={config.speed}
-            captionEnabled={captionEnabled}
+            reserveCaptionHeight={reserveCaptionHeight}
             reducedMotion={reducedMotion}
           />
         ))}

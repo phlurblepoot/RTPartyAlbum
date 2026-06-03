@@ -644,6 +644,22 @@ legend {
   margin: 2px 0;
 }
 
+/* ---- Caption controls (theme editor) ---- */
+.caption-controls legend {
+  font-size: 13px;
+}
+.caption-controls .bubble-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.caption-controls .bubble-controls label {
+  margin-bottom: 8px;
+}
+
 /* ---- Theme select (display tab) ---- */
 .theme-select {
   margin-bottom: 18px;
