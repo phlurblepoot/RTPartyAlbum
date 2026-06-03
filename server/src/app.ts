@@ -9,6 +9,7 @@ import { makeAdminEventsRouter } from './routes/adminEvents.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { makeSettingsRepo } from './db/repositories/settingsRepo.js';
 import { makeEventRepo } from './db/repositories/eventRepo.js';
+import { makeThemeRepo } from './db/repositories/themeRepo.js';
 import { ensureAdminBootstrap, requireAuth } from './auth/auth.js';
 
 export interface AppDeps {
@@ -29,10 +30,12 @@ export function buildApp(deps: AppDeps): Express {
   const settingsRepo = makeSettingsRepo(deps.db);
   ensureAdminBootstrap(settingsRepo, deps.config);
   const eventRepo = makeEventRepo(deps.db);
+  const themeRepo = makeThemeRepo(deps.db);
   app.set('db', deps.db);
   app.set('config', deps.config);
   app.set('settingsRepo', settingsRepo);
   app.set('eventRepo', eventRepo);
+  app.set('themeRepo', themeRepo);
 
   // Middleware: cookie-parser and JSON body before routes.
   app.use(cookieParser());
