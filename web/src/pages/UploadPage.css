@@ -101,7 +101,7 @@
   color: rgba(255, 255, 255, 0.45);
 }
 
-.rtpa-upload__field input:focus {
+.rtpa-upload__field input:focus-visible {
   outline: 2px solid var(--rtpa-accent, #c9a227);
   outline-offset: 1px;
   border-color: transparent;
@@ -127,6 +127,13 @@
 
 .rtpa-upload__add:active {
   background: rgba(255, 255, 255, 0.12);
+}
+
+/* Visible keyboard focus: the file input is opacity:0 but focusable,
+   so surface the focus ring on the wrapping label instead. */
+.rtpa-upload__add:focus-within {
+  outline: 2px solid var(--rtpa-accent, #c9a227);
+  outline-offset: 2px;
 }
 
 .rtpa-upload__add-label {
