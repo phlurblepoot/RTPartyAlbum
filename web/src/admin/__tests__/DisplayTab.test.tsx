@@ -8,7 +8,10 @@ import type { EventDetail } from '@rtpa/shared';
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api');
-  return { ApiError: actual.ApiError, adminApi: { setMotion: vi.fn() } };
+  return {
+    ApiError: actual.ApiError,
+    adminApi: { setMotion: vi.fn(), setEventTheme: vi.fn(), listThemes: vi.fn().mockResolvedValue([]) },
+  };
 });
 import { adminApi, ApiError } from '../api';
 

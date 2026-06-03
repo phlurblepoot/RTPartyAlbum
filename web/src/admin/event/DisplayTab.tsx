@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { adminApi, ApiError } from '../api';
 import { useDebouncedCallback } from './useDebouncedCallback';
+import { ThemeSelect } from './ThemeSelect';
 import type {
   EventDetail,
   MotionConfig,
@@ -58,6 +59,8 @@ export function DisplayTab({ event }: { event: EventDetail }) {
           </span>
         )}
       </div>
+
+      <ThemeSelect event={event} />
 
       <fieldset>
         <legend>Motion-style mix</legend>
