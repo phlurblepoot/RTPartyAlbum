@@ -3,11 +3,18 @@ import type { PublicEvent, Photo } from './types';
 export class ApiError extends Error {
   status: number;
   body: string;
+  code: string | null; // parsed { error } from the JSON body, or null
   constructor(status: number, body: string) {
     super(`API error ${status}`);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
+    try {
+      const parsed = JSON.parse(body) as { error?: unknown };
+      this.code = typeof parsed.error === 'string' ? parsed.error : null;
+    } catch {
+      this.code = null;
+    }
   }
 }
 
@@ -70,6 +77,7 @@ export function uploadFiles(code: string, args: UploadArgs): Promise<Photo[]> {
     };
 
     xhr.onerror = () => reject(new ApiError(0, 'network error'));
+    xhr.onabort = () => reject(new ApiError(0, 'aborted'));
 
     xhr.send(form);
   });

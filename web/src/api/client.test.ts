@@ -140,4 +140,30 @@ describe('uploadFiles', () => {
     xhr.onload?.();
     await expect(promise).rejects.toMatchObject({ status: 403 });
   });
+
+  it('exposes the parsed server error code on rejection', async () => {
+    const promise = uploadFiles('PARTY1', {
+      uploaderName: 'Robin',
+      deviceId: 'dev-123',
+      files: [new File(['x'], 'a.jpg', { type: 'image/jpeg' })],
+    });
+    const xhr = MockXHR.instances[0];
+    xhr.status = 403;
+    xhr.responseText = JSON.stringify({ error: 'uploads_closed' });
+    xhr.onload?.();
+    await expect(promise).rejects.toMatchObject({ status: 403, code: 'uploads_closed' });
+  });
+
+  it('yields a null code for a non-JSON/empty error body', async () => {
+    const promise = uploadFiles('PARTY1', {
+      uploaderName: 'Robin',
+      deviceId: 'dev-123',
+      files: [new File(['x'], 'a.jpg', { type: 'image/jpeg' })],
+    });
+    const xhr = MockXHR.instances[0];
+    xhr.status = 500;
+    xhr.responseText = '';
+    xhr.onload?.();
+    await expect(promise).rejects.toMatchObject({ status: 500, code: null });
+  });
 });
