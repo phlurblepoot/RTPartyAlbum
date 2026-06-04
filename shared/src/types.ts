@@ -29,12 +29,17 @@ export type CaptionPosition = 'below' | 'above' | 'inside' | 'bubble';
 export type CaptionAlign = 'left' | 'center' | 'right';
 export type CaptionInsideEdge = 'top' | 'bottom';
 
+export type BubbleCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
 export interface CaptionBubble {
-  xPct: number;        // 0..100 horizontal anchor over the photo
-  yPct: number;        // 0..100 vertical anchor over the photo
-  rotation: number;    // -45..45 deg
-  radius: number;      // px corner radius (0 = sharp tag)
-  borderWidth: number; // px
+  corner: BubbleCorner; // which photo corner the bubble is pinned to
+  offsetX: number;      // px offset from that corner (negative = hang outside)
+  offsetY: number;      // px offset from that corner (negative = hang outside)
+  width: number;        // px bubble box width
+  height: number;       // px bubble box height
+  rotation: number;     // -45..45 deg
+  radius: number;       // px corner radius (0 = sharp tag)
+  borderWidth: number;  // px
   borderColor: string;
 }
 

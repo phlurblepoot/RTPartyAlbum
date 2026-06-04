@@ -55,7 +55,8 @@ describe('ThemeEditor', () => {
     // Switch to bubble -> bubble controls appear, alignment goes away.
     fireEvent.change(screen.getByLabelText(/caption position/i), { target: { value: 'bubble' } });
     expect(await screen.findByLabelText(/bubble rotation/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/bubble x/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/bubble corner/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/bubble width/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/caption alignment/i)).not.toBeInTheDocument();
   });
 

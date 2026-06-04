@@ -7,6 +7,7 @@ export type {
   CaptionAlign,
   CaptionInsideEdge,
   CaptionBubble,
+  BubbleCorner,
   MotionConfig,
   MediaLimits,
   MediaType,

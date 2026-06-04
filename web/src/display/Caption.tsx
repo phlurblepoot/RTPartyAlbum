@@ -27,13 +27,20 @@ export function Caption({ caption, font, name, compact = false }: CaptionProps) 
 
   if (caption.position === 'bubble') {
     const b = caption.bubble;
+    const [vert, horiz] = b.corner.split('-') as ['top' | 'bottom', 'left' | 'right'];
     const style: CSSProperties = {
       position: 'absolute',
-      left: `${b.xPct}%`,
-      top: `${b.yPct}%`,
-      transform: `translate(-50%, -50%) rotate(${b.rotation}deg)`,
+      [vert]: b.offsetY, // pinned a fixed px distance from the chosen corner...
+      [horiz]: b.offsetX, // ...so placement is independent of the photo's size
+      width: b.width,
+      height: b.height,
+      boxSizing: 'border-box',
+      display: 'flex',
+      alignItems: 'center', // center text so the box height never clips it
+      justifyContent: 'center',
+      padding: '0 8px',
+      transform: `rotate(${b.rotation}deg)`,
       transformOrigin: 'center center',
-      padding: compact ? '1px 7px' : '4px 12px',
       borderRadius: b.radius,
       background: caption.bg,
       color: caption.color,
@@ -42,7 +49,9 @@ export function Caption({ caption, font, name, compact = false }: CaptionProps) 
       fontFamily: font,
       fontSize,
       fontWeight: 700,
+      lineHeight: 'normal', // the photo wrapper sets line-height:0; restore it here
       whiteSpace: 'nowrap',
+      overflow: 'hidden',
       pointerEvents: 'none',
     };
     return (

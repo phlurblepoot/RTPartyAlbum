@@ -50,16 +50,19 @@ describe('Caption', () => {
     expect(el.style.top).toBe('0px');
   });
 
-  it('renders a rotated, positioned bubble', () => {
+  it('pins a rotated, fixed-size bubble to the chosen corner by px offset', () => {
     renderCap({
       ...baseCaption,
       position: 'bubble',
-      bubble: { ...DEFAULT_BUBBLE, xPct: 70, yPct: 20, rotation: 15, radius: 10, borderWidth: 3, borderColor: '#f0f' },
+      bubble: { ...DEFAULT_BUBBLE, corner: 'bottom-left', offsetX: 12, offsetY: 8, width: 120, height: 44, rotation: 15, radius: 10 },
     });
     const el = screen.getByTestId('tile-caption');
     expect(el).toHaveAttribute('data-caption-position', 'bubble');
-    expect(el.style.left).toBe('70%');
-    expect(el.style.top).toBe('20%');
+    // bottom-left -> pinned via bottom/left px offsets (constant distance from corner)
+    expect(el.style.bottom).toBe('8px');
+    expect(el.style.left).toBe('12px');
+    expect(el.style.width).toBe('120px');
+    expect(el.style.height).toBe('44px');
     expect(el.style.transform).toContain('rotate(15deg)');
     expect(el.style.borderRadius).toBe('10px');
   });

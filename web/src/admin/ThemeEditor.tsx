@@ -41,11 +41,17 @@ export function ThemeEditor({ theme, onSaved }: { theme: Theme; onSaved: (t: The
     setCaption({ bubble: { ...resolveCaption(tokens.caption).bubble, ...patch } });
   }
 
+  // Persist a complete, current-shape caption (defaults filled, stale keys dropped)
+  // so themes saved under an older caption shape can't fail validation.
+  function normalizedTokens(): ThemeTokens {
+    return { ...tokens, caption: resolveCaption(tokens.caption) };
+  }
+
   async function save() {
     setBusy(true);
     setError(null);
     try {
-      const saved = await adminApi.updateTheme(theme.id, { name, tokens });
+      const saved = await adminApi.updateTheme(theme.id, { name, tokens: normalizedTokens() });
       onSaved(saved);
     } catch (err) {
       setError(err instanceof ApiError ? `Save failed (${err.status})` : 'Save failed');
@@ -57,7 +63,7 @@ export function ThemeEditor({ theme, onSaved }: { theme: Theme; onSaved: (t: The
     setBusy(true);
     setError(null);
     try {
-      const created = await adminApi.createTheme(`${name} (copy)`, tokens);
+      const created = await adminApi.createTheme(`${name} (copy)`, normalizedTokens());
       onSaved(created);
     } catch (err) {
       setError(err instanceof ApiError ? `Duplicate failed (${err.status})` : 'Duplicate failed');
@@ -159,8 +165,18 @@ export function ThemeEditor({ theme, onSaved }: { theme: Theme; onSaved: (t: The
 
             {cap.position === 'bubble' && (
               <div className="bubble-controls">
-                <label>Horizontal ({cap.bubble.xPct}%)<input type="range" disabled={readOnly} aria-label="bubble x" min={0} max={100} step={1} value={cap.bubble.xPct} onChange={(e) => setBubble({ xPct: Number(e.target.value) })} /></label>
-                <label>Vertical ({cap.bubble.yPct}%)<input type="range" disabled={readOnly} aria-label="bubble y" min={0} max={100} step={1} value={cap.bubble.yPct} onChange={(e) => setBubble({ yPct: Number(e.target.value) })} /></label>
+                <label>Pinned corner
+                  <select disabled={readOnly} aria-label="bubble corner" value={cap.bubble.corner} onChange={(e) => setBubble({ corner: e.target.value as typeof cap.bubble.corner })}>
+                    <option value="top-left">Top-left</option>
+                    <option value="top-right">Top-right</option>
+                    <option value="bottom-left">Bottom-left</option>
+                    <option value="bottom-right">Bottom-right</option>
+                  </select>
+                </label>
+                <label>Offset X ({cap.bubble.offsetX}px)<input type="range" disabled={readOnly} aria-label="bubble offset x" min={-80} max={80} step={1} value={cap.bubble.offsetX} onChange={(e) => setBubble({ offsetX: Number(e.target.value) })} /></label>
+                <label>Offset Y ({cap.bubble.offsetY}px)<input type="range" disabled={readOnly} aria-label="bubble offset y" min={-80} max={80} step={1} value={cap.bubble.offsetY} onChange={(e) => setBubble({ offsetY: Number(e.target.value) })} /></label>
+                <label>Width ({cap.bubble.width}px)<input type="range" disabled={readOnly} aria-label="bubble width" min={40} max={260} step={2} value={cap.bubble.width} onChange={(e) => setBubble({ width: Number(e.target.value) })} /></label>
+                <label>Height ({cap.bubble.height}px)<input type="range" disabled={readOnly} aria-label="bubble height" min={20} max={120} step={2} value={cap.bubble.height} onChange={(e) => setBubble({ height: Number(e.target.value) })} /></label>
                 <label>Rotation ({cap.bubble.rotation}°)<input type="range" disabled={readOnly} aria-label="bubble rotation" min={-45} max={45} step={1} value={cap.bubble.rotation} onChange={(e) => setBubble({ rotation: Number(e.target.value) })} /></label>
                 <label>Corner radius ({cap.bubble.radius}px)<input type="range" disabled={readOnly} aria-label="bubble radius" min={0} max={40} step={1} value={cap.bubble.radius} onChange={(e) => setBubble({ radius: Number(e.target.value) })} /></label>
                 <label>Border width ({cap.bubble.borderWidth}px)<input type="range" disabled={readOnly} aria-label="bubble border width" min={0} max={12} step={1} value={cap.bubble.borderWidth} onChange={(e) => setBubble({ borderWidth: Number(e.target.value) })} /></label>

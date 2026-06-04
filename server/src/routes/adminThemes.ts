@@ -27,8 +27,11 @@ const themeTokensSchema = z.object({
     insideEdge: z.enum(['top', 'bottom']).optional(),
     bubble: z
       .object({
-        xPct: z.number().min(0).max(100),
-        yPct: z.number().min(0).max(100),
+        corner: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']),
+        offsetX: z.number().min(-200).max(200),
+        offsetY: z.number().min(-200).max(200),
+        width: z.number().min(20).max(400),
+        height: z.number().min(16).max(200),
         rotation: z.number().min(-45).max(45),
         radius: z.number().min(0).max(60),
         borderWidth: z.number().min(0).max(20),

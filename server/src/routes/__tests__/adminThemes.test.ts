@@ -138,12 +138,13 @@ describe('admin themes CRUD', () => {
         align: 'center',
         offsetPx: 10,
         insideEdge: 'top',
-        bubble: { xPct: 80, yPct: 10, rotation: -12, radius: 14, borderWidth: 2, borderColor: '#fff' },
+        bubble: { corner: 'top-right', offsetX: -6, offsetY: -6, width: 104, height: 40, rotation: -12, radius: 14, borderWidth: 2, borderColor: '#fff' },
       },
     };
     const res = await agent.post('/api/admin/themes').send({ name: 'Bubbly', tokens: bubbleTokens });
     expect(res.status).toBe(200);
     expect(res.body.tokens.caption.position).toBe('bubble');
+    expect(res.body.tokens.caption.bubble.corner).toBe('top-right');
     expect(res.body.tokens.caption.bubble.rotation).toBe(-12);
   });
 
@@ -154,7 +155,7 @@ describe('admin themes CRUD', () => {
       ...tokens,
       caption: {
         enabled: true, bg: '#000', color: '#fff', position: 'bubble',
-        bubble: { xPct: 50, yPct: 50, rotation: 200, radius: 10, borderWidth: 2, borderColor: '#fff' },
+        bubble: { corner: 'top-right', offsetX: 0, offsetY: 0, width: 100, height: 40, rotation: 200, radius: 10, borderWidth: 2, borderColor: '#fff' },
       },
     };
     const res = await agent.post('/api/admin/themes').send({ name: 'BadBubble', tokens: bad });
