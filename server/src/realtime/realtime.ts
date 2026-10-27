@@ -6,6 +6,7 @@ import type {
   Photo,
   MotionConfig,
   Theme,
+  PublicEvent,
 } from '@rtpa/shared';
 
 export interface RealtimeEmitters {
@@ -15,6 +16,7 @@ export interface RealtimeEmitters {
   emitPhotoUpdated(code: string, photo: Photo): void;
   emitSettingsUpdated(code: string, motionConfig: MotionConfig): void;
   emitThemeUpdated(code: string, theme: Theme): void;
+  emitEventUpdated(code: string, event: PublicEvent): void;
 }
 
 const room = (code: string) => `event:${code}`;
@@ -53,6 +55,9 @@ export function initRealtime(httpServer: HttpServer): RealtimeEmitters {
     },
     emitThemeUpdated(code, theme) {
       io.to(room(code)).emit('theme:updated', theme);
+    },
+    emitEventUpdated(code, event) {
+      io.to(room(code)).emit('event:updated', event);
     },
   };
 }

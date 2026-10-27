@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { ThemeRepo } from '../db/repositories/themeRepo.js';
+import type { EventRepo } from '../db/repositories/eventRepo.js';
+import type { RealtimeEmitters } from '../realtime/realtime.js';
 
 const themeTokensSchema = z.object({
   background: z.object({
@@ -87,6 +89,12 @@ export function makeAdminThemesRouter(): Router {
     if (!updated) {
       res.status(404).json({ error: 'not_found' });
       return;
+    }
+    // Push the edit live to every event using this theme (displays + upload pages).
+    const eventRepo = req.app.get('eventRepo') as EventRepo;
+    const realtime = req.app.get('realtime') as RealtimeEmitters;
+    for (const e of eventRepo.list()) {
+      if (e.themeId === updated.id) realtime.emitThemeUpdated(e.code, updated);
     }
     res.json(updated);
   });

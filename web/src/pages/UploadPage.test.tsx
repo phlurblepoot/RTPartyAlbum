@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -16,6 +16,19 @@ vi.mock('../api/client', async () => {
     uploadFiles: vi.fn(),
   };
 });
+const fakeSocket = {
+  handlers: {} as Record<string, (...args: any[]) => void>,
+  emit: vi.fn(),
+  on(ev: string, cb: (...args: any[]) => void) {
+    this.handlers[ev] = cb;
+  },
+  off: vi.fn(),
+};
+vi.mock('../lib/socket', async (importActual) => ({
+  ...(await importActual<typeof import('../lib/socket')>()),
+  connectSocket: () => fakeSocket,
+  getSocket: () => fakeSocket,
+}));
 vi.mock('../lib/deviceId', () => ({ getDeviceId: () => 'dev-test', DEVICE_ID_KEY: 'rtpa_device_id' }));
 vi.mock('../lib/downscaleImage', () => ({ downscaleImage: vi.fn(async (f: File) => f) }));
 // jsdom can't decode video metadata; default to "unknown duration".
@@ -72,6 +85,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  fakeSocket.handlers = {};
   localStorage.clear();
   vi.clearAllMocks();
   globalThis.URL.createObjectURL = vi.fn(() => 'blob:thumb');
@@ -257,5 +271,23 @@ describe('UploadPage', () => {
 
     expect(await screen.findByText(/toast\.mov is longer than 30s/)).toBeInTheDocument();
     await waitFor(() => expect(uploadFiles).toHaveBeenCalledTimes(1));
+  });
+
+  it('switches to the closed state live when the host pauses uploads', async () => {
+    vi.mocked(getPublicEvent).mockResolvedValue(baseEvent);
+    renderPage();
+    await screen.findByLabelText(/add photos/i);
+    expect(fakeSocket.emit).toHaveBeenCalledWith('join', 'PARTY1');
+
+    act(() => {
+      fakeSocket.handlers['event:updated']({ ...baseEvent, uploadEnabled: false });
+    });
+    expect(await screen.findByText(/uploads are closed/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/add photos/i)).not.toBeInTheDocument();
+
+    act(() => {
+      fakeSocket.handlers['event:updated']({ ...baseEvent, uploadEnabled: true });
+    });
+    expect(await screen.findByLabelText(/add photos/i)).toBeInTheDocument();
   });
 });

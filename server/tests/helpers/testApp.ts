@@ -79,6 +79,9 @@ function makeSpyRealtime(emitted: EmittedEvent[]): RealtimeEmitters {
     emitThemeUpdated(code: string, theme) {
       emitted.push({ type: 'theme:updated', payload: theme });
     },
+    emitEventUpdated(code: string, event) {
+      emitted.push({ type: 'event:updated', payload: event });
+    },
   };
 }
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { RequestHandler } from 'express';
+import type { Application, RequestHandler } from 'express';
 import rateLimit from 'express-rate-limit';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -35,7 +35,7 @@ export function toPublicPhoto(row: PhotoAdmin): Photo {
 }
 
 /** Build the public-facing event view, resolving the theme (falling back to default). */
-function toPublicEvent(
+export function toPublicEvent(
   event: EventDetail,
   themeRepo: ThemeRepo,
   settingsRepo: SettingsRepo,
@@ -50,6 +50,22 @@ function toPublicEvent(
     motionConfig: event.motionConfig,
     mediaLimits: getMediaLimits(settingsRepo),
   };
+}
+
+/**
+ * Broadcast the current public state of each given event to its room, so open
+ * upload pages learn about pause/resume/end (and new media limits) without a reload.
+ * Unknown ids are skipped.
+ */
+export function broadcastEventState(app: Application, eventIds: Iterable<string>): void {
+  const eventRepo = app.get('eventRepo') as EventRepo;
+  const themeRepo = app.get('themeRepo') as ThemeRepo;
+  const settingsRepo = app.get('settingsRepo') as SettingsRepo;
+  const realtime = app.get('realtime') as RealtimeEmitters;
+  for (const id of eventIds) {
+    const event = eventRepo.getById(id);
+    if (event) realtime.emitEventUpdated(event.code, toPublicEvent(event, themeRepo, settingsRepo));
+  }
 }
 
 export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {

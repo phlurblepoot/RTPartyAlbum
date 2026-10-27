@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import type { Photo } from '../api/types';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Photo, PublicEvent, Theme } from '../api/types';
+import { connectSocket, joinEventRoom } from '../lib/socket';
 import { getPublicEvent, uploadFiles, ApiError } from '../api/client';
 import { getDeviceId } from '../lib/deviceId';
 import { themeToCssVars, backgroundStyle } from '../lib/themeCss';
@@ -89,6 +90,28 @@ export default function UploadPage() {
   });
 
   const event = eventQuery.data;
+
+  // Live event state: when the host pauses/resumes/ends uploads, changes the media
+  // limits, or edits the theme, an open page updates in place instead of letting
+  // the guest pick files only to be told "uploads closed" after the fact.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!code) return;
+    const key = ['public-event', code];
+    const socket = connectSocket();
+    const refetch = () => void queryClient.invalidateQueries({ queryKey: key });
+    const leaveRoom = joinEventRoom(socket, code, refetch);
+    const onEvent = (next: PublicEvent) => queryClient.setQueryData(key, next);
+    const onTheme = (theme: Theme) =>
+      queryClient.setQueryData<PublicEvent>(key, (prev) => (prev ? { ...prev, theme } : prev));
+    socket.on('event:updated', onEvent);
+    socket.on('theme:updated', onTheme);
+    return () => {
+      leaveRoom();
+      socket.off('event:updated', onEvent);
+      socket.off('theme:updated', onTheme);
+    };
+  }, [code, queryClient]);
 
   const pageStyle = useMemo(() => {
     if (!event) return {};

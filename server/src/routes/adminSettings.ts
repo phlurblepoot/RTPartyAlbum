@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { SETTINGS_KEYS, DEFAULT_MEDIA_LIMITS, type MediaLimits } from '@rtpa/shared';
 import type { SettingsRepo } from '../db/repositories/settingsRepo.js';
+import type { EventRepo } from '../db/repositories/eventRepo.js';
 import { verifyPassword, setAdminPassword } from '../auth/auth.js';
+import { broadcastEventState } from './publicEvents.js';
 
 const mediaLimitsSchema = z.object({
   photoMaxBytes: z.number().int().positive(),
@@ -47,6 +49,12 @@ export function makeAdminSettingsRouter(): Router {
     }
     if (parsed.data.mediaLimits !== undefined) {
       settingsRepo.setJson(SETTINGS_KEYS.mediaLimits, parsed.data.mediaLimits);
+      // Open upload pages validate against these; push the new caps to them.
+      const eventRepo = req.app.get('eventRepo') as EventRepo;
+      broadcastEventState(
+        req.app,
+        eventRepo.list().filter((e) => e.status !== 'ended').map((e) => e.id),
+      );
     }
     res.json(readSettings(settingsRepo));
   });

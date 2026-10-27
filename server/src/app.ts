@@ -30,6 +30,7 @@ export const noopRealtime: RealtimeEmitters = {
   emitPhotoUpdated() {},
   emitSettingsUpdated() {},
   emitThemeUpdated() {},
+  emitEventUpdated() {},
 };
 
 export interface AppDeps {

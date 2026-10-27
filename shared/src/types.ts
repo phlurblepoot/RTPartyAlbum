@@ -138,6 +138,8 @@ export interface ServerToClientEvents {
   'photo:updated': (photo: Photo) => void;
   'settings:updated': (motionConfig: MotionConfig) => void;
   'theme:updated': (theme: Theme) => void;
+  /** Event-level state changed (upload pause/resume, ended, activated, media limits). */
+  'event:updated': (event: PublicEvent) => void;
 }
 
 export interface ClientToServerEvents {

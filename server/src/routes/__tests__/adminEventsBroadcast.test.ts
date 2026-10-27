@@ -25,6 +25,8 @@ function ctx() {
     emitPhotoDeleted: vi.fn(),
     emitSettingsUpdated: vi.fn(),
     emitThemeUpdated: vi.fn(),
+    emitPhotoUpdated: vi.fn(),
+    emitEventUpdated: vi.fn(),
   };
   const app = buildApp({ db, config, realtime });
   return { app, realtime };
@@ -100,5 +102,73 @@ describe('motion + theme update broadcasts', () => {
     const agent = await authed(app);
     const res = await agent.put('/api/admin/events/no-such-id/theme').send({ themeId: DEFAULT_THEME_ID });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('event state broadcasts', () => {
+  it('pausing uploads broadcasts event:updated with uploadEnabled false', async () => {
+    const { app, realtime } = ctx();
+    const agent = await authed(app);
+    const e = (await agent.post('/api/admin/events').send({ name: 'E' })).body;
+    realtime.emitEventUpdated.mockClear();
+    await agent.post(`/api/admin/events/${e.id}/upload-state`).send({ enabled: false });
+    expect(realtime.emitEventUpdated).toHaveBeenCalledWith(
+      e.code,
+      expect.objectContaining({ code: e.code, uploadEnabled: false }),
+    );
+  });
+
+  it('ending an event broadcasts status ended', async () => {
+    const { app, realtime } = ctx();
+    const agent = await authed(app);
+    const e = (await agent.post('/api/admin/events').send({ name: 'E' })).body;
+    realtime.emitEventUpdated.mockClear();
+    await agent.post(`/api/admin/events/${e.id}/end`);
+    expect(realtime.emitEventUpdated).toHaveBeenCalledWith(
+      e.code,
+      expect.objectContaining({ status: 'ended', uploadEnabled: false }),
+    );
+  });
+
+  it('activating one event also broadcasts the newly paused one', async () => {
+    const { app, realtime } = ctx();
+    const agent = await authed(app);
+    const a = (await agent.post('/api/admin/events').send({ name: 'A' })).body;
+    const b = (await agent.post('/api/admin/events').send({ name: 'B' })).body;
+    realtime.emitEventUpdated.mockClear();
+    await agent.post(`/api/admin/events/${a.id}/activate`);
+    expect(realtime.emitEventUpdated).toHaveBeenCalledWith(a.code, expect.objectContaining({ status: 'active' }));
+    expect(realtime.emitEventUpdated).toHaveBeenCalledWith(b.code, expect.objectContaining({ status: 'paused' }));
+  });
+
+  it('editing a custom theme re-broadcasts it to events that use it', async () => {
+    const { app, realtime } = ctx();
+    const agent = await authed(app);
+    const preset = (await agent.get('/api/admin/themes')).body.find(
+      (t: { id: string }) => t.id === DEFAULT_THEME_ID,
+    );
+    const custom = (await agent.post('/api/admin/themes').send({ name: 'Mine', tokens: preset.tokens })).body;
+    const used = (await agent.post('/api/admin/events').send({ name: 'Used' })).body;
+    const other = (await agent.post('/api/admin/events').send({ name: 'Other' })).body;
+    await agent.put(`/api/admin/events/${used.id}/theme`).send({ themeId: custom.id });
+    realtime.emitThemeUpdated.mockClear();
+
+    await agent.put(`/api/admin/themes/${custom.id}`).send({ name: 'Mine v2' });
+    expect(realtime.emitThemeUpdated).toHaveBeenCalledTimes(1);
+    expect(realtime.emitThemeUpdated).toHaveBeenCalledWith(
+      used.code,
+      expect.objectContaining({ id: custom.id, name: 'Mine v2' }),
+    );
+    expect(realtime.emitThemeUpdated).not.toHaveBeenCalledWith(other.code, expect.anything());
+  });
+
+  it('changing media limits pushes them to open events', async () => {
+    const { app, realtime } = ctx();
+    const agent = await authed(app);
+    const e = (await agent.post('/api/admin/events').send({ name: 'E' })).body;
+    realtime.emitEventUpdated.mockClear();
+    const mediaLimits = { photoMaxBytes: 1_000_000, videoMaxBytes: 2_000_000, videoMaxDurationSec: 10 };
+    await agent.put('/api/admin/settings').send({ mediaLimits });
+    expect(realtime.emitEventUpdated).toHaveBeenCalledWith(e.code, expect.objectContaining({ mediaLimits }));
   });
 });

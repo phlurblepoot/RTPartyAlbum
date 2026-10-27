@@ -7,6 +7,7 @@ import type { ThemeRepo } from '../db/repositories/themeRepo.js';
 import type { SettingsRepo } from '../db/repositories/settingsRepo.js';
 import type { RealtimeEmitters } from '../realtime/realtime.js';
 import { generateUniqueCode } from '../services/eventCode.js';
+import { broadcastEventState } from './publicEvents.js';
 
 const createSchema = z.object({ name: z.string().trim().min(1).max(120) });
 const uploadStateSchema = z.object({ enabled: z.boolean() });
@@ -72,7 +73,10 @@ export function makeAdminEventsRouter(): Router {
       themeId: DEFAULT_THEME_ID,
       motionConfig: DEFAULT_MOTION_CONFIG,
     });
+    // Activating pauses every other event, so tell all their rooms.
+    const affected = eventRepo.list().map((e) => e.id);
     eventRepo.activate(event.id); // pauses others
+    broadcastEventState(req.app, affected);
     res.json(eventRepo.getById(event.id));
   });
 
@@ -92,7 +96,8 @@ export function makeAdminEventsRouter(): Router {
       res.status(404).json({ error: 'not_found' });
       return;
     }
-    eventRepo.activate(req.params.id);
+    eventRepo.activate(req.params.id); // pauses others
+    broadcastEventState(req.app, eventRepo.list().map((e) => e.id));
     res.json(eventRepo.getById(req.params.id));
   });
 
@@ -108,6 +113,7 @@ export function makeAdminEventsRouter(): Router {
       return;
     }
     eventRepo.setUploadEnabled(req.params.id, parsed.data.enabled);
+    broadcastEventState(req.app, [req.params.id]);
     res.json(eventRepo.getById(req.params.id));
   });
 
@@ -118,6 +124,7 @@ export function makeAdminEventsRouter(): Router {
       return;
     }
     eventRepo.end(req.params.id);
+    broadcastEventState(req.app, [req.params.id]);
     res.json(eventRepo.getById(req.params.id));
   });
 

@@ -49,6 +49,7 @@ async function makeApp(opts: {
     emitPhotoDeleted: vi.fn(),
     emitSettingsUpdated: vi.fn(),
     emitThemeUpdated: vi.fn(),
+    emitEventUpdated: vi.fn(),
   };
 
   const app = buildApp({ db, config, realtime, uploadRateMax: opts.uploadRateMax });
