@@ -1,12 +1,8 @@
 name: build-and-publish
 
-# Builds the server, runs the test suite, and publishes a multi-stage Docker
-# image to GitHub Container Registry (GHCR) so it can be pulled onto the Unraid box.
-#
-# NOTE (current state): only the backend API is built. The web UI (guest upload page,
-# gliding-canvas display, admin console) is not implemented yet — the container serves
-# the JSON API at /api/*, media at /media/*, and Socket.IO, but the root URL has no
-# visual app until later milestones.
+# Runs the full test suite (shared + server + web), then builds and publishes a
+# multi-stage Docker image to GitHub Container Registry (GHCR) so it can be pulled
+# onto the Unraid box. The image serves the API, media, Socket.IO and the web app.
 
 on:
   push:
@@ -20,9 +16,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Full workspace test suite (shared + server). Informational: it does NOT gate the
-  # image, because the Docker build itself recompiles the code and fails if it can't
-  # build. This keeps a flaky CI media-tool difference from blocking a deployable image.
+  # Full workspace test suite. The image is only built and published if this passes,
+  # so a red build never reaches GHCR. (Re-run the workflow if a media-tool hiccup
+  # ever makes a test flaky, rather than shipping untested code.)
   test:
     runs-on: ubuntu-latest
     steps:
@@ -35,9 +31,12 @@ jobs:
       - run: npm run build -w @rtpa/shared
       - run: npm test -w @rtpa/shared
       - run: npm test -w @rtpa/server
+      - run: npm test -w @rtpa/web
       - run: npm run build -w @rtpa/server
+      - run: npm run build -w @rtpa/web
 
   docker:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read

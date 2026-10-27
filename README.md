@@ -11,7 +11,7 @@ npm workspaces:
 
 - `shared/` — `@rtpa/shared`: canonical TypeScript types + constants.
 - `server/` — `@rtpa/server`: Express + better-sqlite3 + Socket.IO API and static host.
-- `web/` — `@rtpa/web`: React (Vite) front-end (placeholder until later plans).
+- `web/` — `@rtpa/web`: React (Vite) front-end — guest upload page, live display, admin console.
 
 ## Requirements
 
@@ -47,7 +47,7 @@ curl http://localhost:8080/api/health   # -> {"status":"ok"}
 | `DATA_DIR` | `/data` | `./.data` | SQLite db + derived media |
 | `UPLOADS_DIR` | `/uploads` | `./.uploads` | Original uploads |
 | `ADMIN_PASSWORD` | — | — | Bootstrap admin password |
-| `PUBLIC_BASE_URL` | `` | `` | Base URL for QR codes / share links |
+| `PUBLIC_BASE_URL` | `` | `` | Base URL for QR codes / share links (seeds the admin setting; if both are blank, links use the URL you browse the admin from) |
 | `SESSION_SECRET` | generated | generated | Session signing secret (stored in settings if unset) |
 
 ## Tests
