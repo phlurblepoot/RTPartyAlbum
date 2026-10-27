@@ -5,10 +5,11 @@ import { ThemesPage } from '../ThemesPage';
 import { renderWithProviders } from './helpers/renderWithProviders';
 import type { Theme, ThemeTokens } from '@rtpa/shared';
 
-vi.mock('../api', () => ({
+vi.mock('../api', async () => ({
+  ApiError: (await vi.importActual<typeof import('../../api/client')>('../../api/client')).ApiError,
   adminApi: { listThemes: vi.fn(), createTheme: vi.fn(), deleteTheme: vi.fn(), updateTheme: vi.fn() },
 }));
-import { adminApi } from '../api';
+import { adminApi, ApiError } from '../api';
 
 const tokens: ThemeTokens = {
   background: { type: 'solid', value: '#101018' }, ambient: 'glow',
@@ -60,5 +61,16 @@ describe('ThemesPage', () => {
     const row = screen.getByTestId('theme-row-t1');
     await userEvent.click(row.querySelector('button[data-action="delete"]')!);
     await waitFor(() => expect(adminApi.deleteTheme).toHaveBeenCalledWith('t1'));
+  });
+
+  it('explains which events block deleting an in-use theme', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    (adminApi.deleteTheme as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new ApiError(409, JSON.stringify({ error: 'theme_in_use', events: ['Sam & Lee'] })),
+    );
+    renderWithProviders(<ThemesPage />);
+    await screen.findByText('Mine');
+    await userEvent.click(screen.getByTestId('theme-row-t1').querySelector('button[data-action="delete"]')!);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/in use by Sam & Lee/);
   });
 });

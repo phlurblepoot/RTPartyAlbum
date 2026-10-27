@@ -106,6 +106,15 @@ export function makeAdminThemesRouter(): Router {
       res.status(404).json({ error: 'not_found' });
       return;
     }
+    // events.theme_id is a foreign key, so deleting a theme still in use would fail
+    // inside SQLite (surfacing as a 500). Refuse cleanly and name the events, so the
+    // admin knows what to switch first.
+    const eventRepo = req.app.get('eventRepo') as EventRepo;
+    const users = eventRepo.list().filter((e) => e.themeId === theme.id);
+    if (users.length > 0) {
+      res.status(409).json({ error: 'theme_in_use', events: users.map((e) => e.name) });
+      return;
+    }
     const removed = themeRepo.remove(req.params.id); // false if preset
     if (!removed) {
       res.status(409).json({ error: 'preset_immutable' });

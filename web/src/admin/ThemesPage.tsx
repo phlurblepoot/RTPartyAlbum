@@ -31,7 +31,24 @@ export function ThemesPage() {
       void invalidate();
       setEditing(null);
     },
-    onError: toError,
+    onError: (err: unknown) => {
+      if (err instanceof ApiError && err.code === 'theme_in_use') {
+        let names: string[] = [];
+        try {
+          const parsed = JSON.parse(err.body) as { events?: unknown };
+          if (Array.isArray(parsed.events)) names = parsed.events.map(String);
+        } catch {
+          // fall through to the generic wording
+        }
+        setError(
+          names.length > 0
+            ? `This theme is in use by ${names.join(', ')}. Switch those events to another theme first.`
+            : 'This theme is in use by an event. Switch that event to another theme first.',
+        );
+        return;
+      }
+      toError(err);
+    },
   });
 
   return (

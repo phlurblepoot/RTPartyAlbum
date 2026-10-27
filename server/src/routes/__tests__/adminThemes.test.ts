@@ -74,6 +74,20 @@ describe('admin themes CRUD', () => {
     expect(res.status).toBe(204);
   });
 
+  it('refuses to delete a theme an event is using → 409 theme_in_use, theme kept', async () => {
+    const { app } = ctx();
+    const agent = await authed(app);
+    const custom = (await agent.post('/api/admin/themes').send({ name: 'Mine', tokens })).body;
+    const ev = (await agent.post('/api/admin/events').send({ name: 'Party' })).body;
+    await agent.put(`/api/admin/events/${ev.id}/theme`).send({ themeId: custom.id });
+
+    const res = await agent.delete(`/api/admin/themes/${custom.id}`);
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: 'theme_in_use', events: ['Party'] });
+    const list = (await agent.get('/api/admin/themes')).body as Array<{ id: string }>;
+    expect(list.some((t) => t.id === custom.id)).toBe(true);
+  });
+
   it('refuses to edit a preset → 409 and leaves it unchanged', async () => {
     const { app } = ctx();
     const agent = await authed(app);
