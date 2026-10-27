@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import QRCode from 'qrcode';
 import request from 'supertest';
 import { buildApp } from '../../app.js';
 import { loadConfig } from '../../config.js';
@@ -11,14 +12,14 @@ import { SETTINGS_KEYS } from '@rtpa/shared';
 
 // Plan 2 snippet used `getDb(':memory:')` and `seed(db, config)`, but real disk API
 // uses `openMemoryDb()` and `seed({ themeRepo, settingsRepo, sessionSecret })`.
-function ctx() {
+function ctx(baseUrl = 'https://party.example.com') {
   const config = loadConfig({ nodeEnv: 'test', dataDir: ':memory:', adminPassword: 'hunter2' });
   const db = openMemoryDb();
   migrate(db);
   const settingsRepo = makeSettingsRepo(db);
   const themeRepo = makeThemeRepo(db);
   seed({ themeRepo, settingsRepo, sessionSecret: config.sessionSecret });
-  settingsRepo.set(SETTINGS_KEYS.publicBaseUrl, 'https://party.example.com');
+  settingsRepo.set(SETTINGS_KEYS.publicBaseUrl, baseUrl);
   return { app: buildApp({ db, config }) };
 }
 
@@ -28,7 +29,32 @@ async function authed(app: ReturnType<typeof buildApp>) {
   return agent;
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('QR route', () => {
+  it('encodes the configured public base URL', async () => {
+    const spy = vi.spyOn(QRCode, 'toBuffer');
+    const { app } = ctx('https://party.example.com/');
+    const agent = await authed(app);
+    const e = (await agent.post('/api/admin/events').send({ name: 'E' })).body;
+    await agent.get(`/api/admin/events/${e.id}/qr`);
+    expect(spy.mock.calls[0][0]).toBe(`https://party.example.com/e/${e.code}`);
+  });
+
+  it('falls back to the request origin when no base URL is set (never a bare path)', async () => {
+    const spy = vi.spyOn(QRCode, 'toBuffer');
+    const { app } = ctx('');
+    const agent = await authed(app);
+    const e = (await agent.post('/api/admin/events').send({ name: 'E' })).body;
+    await agent
+      .get(`/api/admin/events/${e.id}/qr`)
+      .set('Host', 'party.lan:8080')
+      .set('X-Forwarded-Proto', 'https');
+    expect(spy.mock.calls[0][0]).toBe(`https://party.lan:8080/e/${e.code}`);
+  });
+
   it('returns a PNG image for an existing event', async () => {
     const { app } = ctx();
     const agent = await authed(app);

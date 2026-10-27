@@ -172,7 +172,14 @@ export function makeAdminEventsRouter(): Router {
         res.status(404).json({ error: 'not_found' });
         return;
       }
-      const baseUrl = (settingsRepo.get(SETTINGS_KEYS.publicBaseUrl) ?? '').replace(/\/+$/, '');
+      // A QR code must hold an ABSOLUTE URL — a phone can't open a bare path. Use the
+      // configured public base URL; if none is set, fall back to the origin the admin
+      // is browsing from (req.protocol honors X-Forwarded-Proto via `trust proxy`).
+      const configured = (settingsRepo.get(SETTINGS_KEYS.publicBaseUrl) ?? '').trim();
+      const baseUrl = (configured || `${req.protocol}://${req.get('host') ?? 'localhost'}`).replace(
+        /\/+$/,
+        '',
+      );
       const url = `${baseUrl}/e/${event.code}`;
       const png = await QRCode.toBuffer(url, { type: 'png', width: 512, margin: 2 });
       res.setHeader('Content-Type', 'image/png');

@@ -25,7 +25,12 @@ function main(): void {
 
   const settingsRepo = makeSettingsRepo(db);
   const themeRepo = makeThemeRepo(db);
-  seed({ themeRepo, settingsRepo, sessionSecret: config.sessionSecret });
+  seed({
+    themeRepo,
+    settingsRepo,
+    sessionSecret: config.sessionSecret,
+    publicBaseUrl: config.publicBaseUrl,
+  });
 
   // Create the bare HTTP server first so Socket.IO can attach its upgrade
   // handler to it, then build the app with the REAL realtime emitters and route

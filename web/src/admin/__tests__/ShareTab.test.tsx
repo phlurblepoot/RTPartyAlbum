@@ -39,6 +39,14 @@ describe('ShareTab', () => {
     expect(screen.getByRole('img', { name: /qr/i })).toHaveAttribute('src', '/api/admin/events/e1/qr');
   });
 
+  it('falls back to this origin when no public base URL is configured', async () => {
+    (adminApi.getSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      publicBaseUrl: '', mediaLimits: DEFAULT_MEDIA_LIMITS,
+    });
+    renderWithProviders(<ShareTab event={event} />);
+    expect(await screen.findByText(`${window.location.origin}/e/ABCD`)).toBeInTheDocument();
+  });
+
   it('print button calls window.print', async () => {
     const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {});
     renderWithProviders(<ShareTab event={event} />);

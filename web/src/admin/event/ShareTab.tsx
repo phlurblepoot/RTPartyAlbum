@@ -11,7 +11,9 @@ export function ShareTab({ event }: { event: EventDetail }) {
     queryKey: ['admin', 'settings'],
     queryFn: () => adminApi.getSettings(),
   });
-  const baseUrl = settings?.publicBaseUrl ?? window.location.origin;
+  // A blank setting means "not configured" — fall back to this origin so the link
+  // is always absolute (matching the server-rendered QR code).
+  const baseUrl = (settings?.publicBaseUrl?.trim() || window.location.origin).replace(/\/+$/, '');
   const uploadLink = `${baseUrl}/e/${event.code}`;
 
   const invalidateEvent = () =>

@@ -15,11 +15,14 @@ export interface SeedDeps {
   /** Operator-provided session secret (from SESSION_SECRET env var). When absent or
    *  empty a secure random secret is generated. Ignored if a secret is already stored. */
   sessionSecret?: string;
+  /** Operator-provided public base URL (from PUBLIC_BASE_URL env var). Fills the
+   *  setting when it is unset or blank; a value saved in admin always wins. */
+  publicBaseUrl?: string;
 }
 
 /** Seed preset themes and default settings. Safe to run on every boot (idempotent). */
 export function seed(deps: SeedDeps): void {
-  const { themeRepo, settingsRepo, sessionSecret } = deps;
+  const { themeRepo, settingsRepo, sessionSecret, publicBaseUrl } = deps;
 
   for (const theme of PRESET_THEMES) {
     themeRepo.upsertPreset(theme);
@@ -29,8 +32,13 @@ export function seed(deps: SeedDeps): void {
     settingsRepo.setJson(SETTINGS_KEYS.mediaLimits, DEFAULT_MEDIA_LIMITS satisfies MediaLimits);
   }
 
-  if (settingsRepo.get(SETTINGS_KEYS.publicBaseUrl) === undefined) {
-    settingsRepo.set(SETTINGS_KEYS.publicBaseUrl, '');
+  // PUBLIC_BASE_URL bootstraps the setting. It also fills a stored blank, so
+  // installs that were already seeded with '' (before the env var was honored)
+  // pick it up on the next boot. A non-blank value saved in admin is never touched.
+  const envBaseUrl = (publicBaseUrl ?? '').trim().replace(/\/+$/, '');
+  const storedBaseUrl = settingsRepo.get(SETTINGS_KEYS.publicBaseUrl);
+  if (storedBaseUrl === undefined || (storedBaseUrl === '' && envBaseUrl !== '')) {
+    settingsRepo.set(SETTINGS_KEYS.publicBaseUrl, envBaseUrl);
   }
 
   if (settingsRepo.get(SETTINGS_KEYS.sessionSecret) === undefined) {

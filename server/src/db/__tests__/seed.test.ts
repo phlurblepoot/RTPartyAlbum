@@ -37,6 +37,29 @@ describe('seed', () => {
     db.close();
   });
 
+  it('seeds the public base url from PUBLIC_BASE_URL (trailing slash trimmed)', () => {
+    const { db, themeRepo, settingsRepo } = freshSeededDb();
+    seed({ themeRepo, settingsRepo, publicBaseUrl: 'https://party.example.com/' });
+    expect(settingsRepo.get(SETTINGS_KEYS.publicBaseUrl)).toBe('https://party.example.com');
+    db.close();
+  });
+
+  it('fills a previously-seeded blank base url from PUBLIC_BASE_URL', () => {
+    const { db, themeRepo, settingsRepo } = freshSeededDb();
+    seed({ themeRepo, settingsRepo }); // old boot: stored ''
+    seed({ themeRepo, settingsRepo, publicBaseUrl: 'https://party.example.com' });
+    expect(settingsRepo.get(SETTINGS_KEYS.publicBaseUrl)).toBe('https://party.example.com');
+    db.close();
+  });
+
+  it('never overwrites a base url saved in admin', () => {
+    const { db, themeRepo, settingsRepo } = freshSeededDb();
+    settingsRepo.set(SETTINGS_KEYS.publicBaseUrl, 'https://admin-set.example.com');
+    seed({ themeRepo, settingsRepo, publicBaseUrl: 'https://env.example.com' });
+    expect(settingsRepo.get(SETTINGS_KEYS.publicBaseUrl)).toBe('https://admin-set.example.com');
+    db.close();
+  });
+
   it('generates and stores a session secret when absent (no sessionSecret provided)', () => {
     const { db, themeRepo, settingsRepo } = freshSeededDb();
     seed({ themeRepo, settingsRepo });
