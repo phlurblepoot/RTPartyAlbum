@@ -106,6 +106,8 @@ export interface PublicEvent {
   uploadEnabled: boolean;
   theme: Theme;
   motionConfig: MotionConfig;
+  /** Current admin-configured upload caps, so the guest page validates against them. */
+  mediaLimits: MediaLimits;
 }
 
 export interface Photo {

@@ -18,7 +18,7 @@ export interface ValidationResult {
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp|tiff?)$/i;
 const VIDEO_EXT = /\.(mp4|mov|m4v|webm|avi|mkv|3gp)$/i;
 
-function classify(file: File): 'image' | 'video' | null {
+export function classifyFile(file: File): 'image' | 'video' | null {
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
   // Unknown/empty MIME (common for HEIC): fall back to the file extension.
@@ -32,7 +32,7 @@ export function validateFiles(files: File[], limits: MediaLimits): ValidationRes
   const rejected: RejectedFile[] = [];
 
   for (const file of files) {
-    const kind = classify(file);
+    const kind = classifyFile(file);
 
     if (!kind) {
       rejected.push({ file, reason: 'bad-type' });

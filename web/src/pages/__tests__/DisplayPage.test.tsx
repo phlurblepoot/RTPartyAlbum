@@ -58,6 +58,7 @@ const publicEvent: PublicEvent = {
   uploadEnabled: true,
   theme: { id: 't1', name: 'T', isPreset: true, tokens: PRESET_THEME_TOKENS },
   motionConfig: { ...testConfig, maxOnCanvas: 3 },
+  mediaLimits: { photoMaxBytes: 25 * 1024 * 1024, videoMaxBytes: 60 * 1024 * 1024, videoMaxDurationSec: 30 },
 };
 let albumPhotos: Photo[] = [];
 vi.mock('../../api/client', () => ({

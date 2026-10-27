@@ -18,6 +18,9 @@ vi.mock('../api/client', async () => {
 });
 vi.mock('../lib/deviceId', () => ({ getDeviceId: () => 'dev-test', DEVICE_ID_KEY: 'rtpa_device_id' }));
 vi.mock('../lib/downscaleImage', () => ({ downscaleImage: vi.fn(async (f: File) => f) }));
+// jsdom can't decode video metadata; default to "unknown duration".
+vi.mock('../lib/videoDuration', () => ({ readVideoDurationSec: vi.fn(async () => null) }));
+import { readVideoDurationSec } from '../lib/videoDuration';
 
 import { getPublicEvent, uploadFiles, ApiError } from '../api/client';
 import UploadPage from './UploadPage';
@@ -52,6 +55,7 @@ const baseEvent: PublicEvent = {
     tiltMinDeg: -8,
     tiltMaxDeg: 8,
   },
+  mediaLimits: { photoMaxBytes: 25 * 1024 * 1024, videoMaxBytes: 60 * 1024 * 1024, videoMaxDurationSec: 30 },
 };
 
 function renderPage() {
@@ -221,5 +225,37 @@ describe('UploadPage', () => {
 
     resolveUpload([]);
     await waitFor(() => expect(picker).not.toBeDisabled());
+  });
+
+  it("validates against the host's configured limits, not the built-in defaults", async () => {
+    vi.mocked(getPublicEvent).mockResolvedValue({
+      ...baseEvent,
+      mediaLimits: { photoMaxBytes: 1024 * 1024, videoMaxBytes: 60 * 1024 * 1024, videoMaxDurationSec: 30 },
+    });
+    renderPage();
+    const input = await screen.findByLabelText(/your name/i);
+    await userEvent.type(input, 'Robin');
+
+    // 2 MB: under the 25 MB default, over this host's 1 MB cap.
+    const big = new File([new Uint8Array(2 * 1024 * 1024)], 'big.jpg', { type: 'image/jpeg' });
+    await userEvent.upload(screen.getByLabelText(/add photos/i), big);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/big\.jpg is too large \(max 1 MB\)/);
+    expect(uploadFiles).not.toHaveBeenCalled();
+  });
+
+  it('tells the guest a long video will be trimmed, and still uploads it', async () => {
+    vi.mocked(getPublicEvent).mockResolvedValue(baseEvent);
+    vi.mocked(readVideoDurationSec).mockResolvedValueOnce(95);
+    vi.mocked(uploadFiles).mockResolvedValue([]);
+    renderPage();
+    const input = await screen.findByLabelText(/your name/i);
+    await userEvent.type(input, 'Robin');
+
+    const clip = new File(['x'], 'toast.mov', { type: 'video/quicktime' });
+    await userEvent.upload(screen.getByLabelText(/add photos/i), clip);
+
+    expect(await screen.findByText(/toast\.mov is longer than 30s/)).toBeInTheDocument();
+    await waitFor(() => expect(uploadFiles).toHaveBeenCalledTimes(1));
   });
 });

@@ -32,6 +32,7 @@ const fakeEvent: PublicEvent = {
     tiltMinDeg: -8,
     tiltMaxDeg: 8,
   },
+  mediaLimits: { photoMaxBytes: 25 * 1024 * 1024, videoMaxBytes: 60 * 1024 * 1024, videoMaxDurationSec: 30 },
 };
 
 describe('getPublicEvent', () => {

@@ -7,7 +7,7 @@ import { migrate } from '../../db/migrate.js';
 import { seed } from '../../db/seed.js';
 import { makeSettingsRepo } from '../../db/repositories/settingsRepo.js';
 import { makeThemeRepo } from '../../db/repositories/themeRepo.js';
-import { DEFAULT_THEME_ID } from '@rtpa/shared';
+import { DEFAULT_THEME_ID, SETTINGS_KEYS } from '@rtpa/shared';
 
 function ctx() {
   const config = loadConfig({ nodeEnv: 'test', dataDir: ':memory:', adminPassword: 'hunter2' });
@@ -17,7 +17,7 @@ function ctx() {
   const themeRepo = makeThemeRepo(db);
   seed({ themeRepo, settingsRepo, sessionSecret: config.sessionSecret });
   const app = buildApp({ db, config });
-  return { app };
+  return { app, settingsRepo };
 }
 
 async function createEvent(app: ReturnType<typeof buildApp>) {
@@ -38,6 +38,15 @@ describe('public events read', () => {
     expect(res.body.theme.id).toBe(DEFAULT_THEME_ID);
     expect(res.body.motionConfig).toBeTruthy();
     expect(res.body).not.toHaveProperty('id'); // PublicEvent shape, no internal id
+  });
+
+  it('GET by-code includes the admin-configured media limits', async () => {
+    const { app, settingsRepo } = ctx();
+    const limits = { photoMaxBytes: 5_000_000, videoMaxBytes: 10_000_000, videoMaxDurationSec: 12 };
+    settingsRepo.setJson(SETTINGS_KEYS.mediaLimits, limits);
+    const e = await createEvent(app);
+    const res = await request(app).get(`/api/events/by-code/${e.code}`);
+    expect(res.body.mediaLimits).toEqual(limits);
   });
 
   it('GET /active returns null when no event is active', async () => {

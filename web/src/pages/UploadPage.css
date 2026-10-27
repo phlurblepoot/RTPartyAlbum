@@ -182,6 +182,17 @@
   line-height: 1.4;
 }
 
+/* Informational (not an error): e.g. "this video will be trimmed". */
+.rtpa-upload__notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--rtpa-accent, rgba(255, 255, 255, 0.35));
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 /* ── Success state ───────────────────────────────────────────────── */
 
 .rtpa-upload__success {

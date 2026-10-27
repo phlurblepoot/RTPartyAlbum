@@ -35,7 +35,11 @@ export function toPublicPhoto(row: PhotoAdmin): Photo {
 }
 
 /** Build the public-facing event view, resolving the theme (falling back to default). */
-function toPublicEvent(event: EventDetail, themeRepo: ThemeRepo): PublicEvent {
+function toPublicEvent(
+  event: EventDetail,
+  themeRepo: ThemeRepo,
+  settingsRepo: SettingsRepo,
+): PublicEvent {
   const theme = themeRepo.getById(event.themeId) ?? themeRepo.getById(DEFAULT_THEME_ID)!;
   return {
     code: event.code,
@@ -44,6 +48,7 @@ function toPublicEvent(event: EventDetail, themeRepo: ThemeRepo): PublicEvent {
     uploadEnabled: event.uploadEnabled,
     theme,
     motionConfig: event.motionConfig,
+    mediaLimits: getMediaLimits(settingsRepo),
   };
 }
 
@@ -56,8 +61,9 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
   router.get('/active', (req, res) => {
     const eventRepo = req.app.get('eventRepo') as EventRepo;
     const themeRepo = req.app.get('themeRepo') as ThemeRepo;
+    const settingsRepo = req.app.get('settingsRepo') as SettingsRepo;
     const event = eventRepo.getActive();
-    res.json(event ? toPublicEvent(event, themeRepo) : null);
+    res.json(event ? toPublicEvent(event, themeRepo, settingsRepo) : null);
   });
 
   router.get('/by-code/:code', (req, res) => {
@@ -68,7 +74,8 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
       res.status(404).json({ error: 'not_found' });
       return;
     }
-    res.json(toPublicEvent(event, themeRepo));
+    const settingsRepo = req.app.get('settingsRepo') as SettingsRepo;
+    res.json(toPublicEvent(event, themeRepo, settingsRepo));
   });
 
   router.get('/by-code/:code/photos', (req, res) => {

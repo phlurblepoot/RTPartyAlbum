@@ -7,8 +7,9 @@ import { getDeviceId } from '../lib/deviceId';
 import { themeToCssVars, backgroundStyle } from '../lib/themeCss';
 import { useUploaderName } from '../lib/useUploaderName';
 import { downscaleImage } from '../lib/downscaleImage';
-import { validateFiles } from '../lib/validateUpload';
-import { DEFAULT_MEDIA_LIMITS } from '@rtpa/shared';
+import { classifyFile, validateFiles } from '../lib/validateUpload';
+import { readVideoDurationSec } from '../lib/videoDuration';
+import { DEFAULT_MEDIA_LIMITS, type MediaLimits } from '@rtpa/shared';
 import './UploadPage.css';
 
 interface Contribution {
@@ -42,10 +43,33 @@ function uploadErrorMessage(err: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
-function rejectionMessage(name: string, reason: 'bad-type' | 'too-large'): string {
-  return reason === 'too-large'
-    ? `${name} is too large`
-    : `${name} isn't a supported photo or video`;
+function formatMb(bytes: number): string {
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
+function rejectionMessage(
+  file: File,
+  reason: 'bad-type' | 'too-large',
+  limits: MediaLimits,
+): string {
+  if (reason === 'bad-type') return `${file.name} isn't a supported photo or video`;
+  const cap = classifyFile(file) === 'video' ? limits.videoMaxBytes : limits.photoMaxBytes;
+  return `${file.name} is too large (max ${formatMb(cap)})`;
+}
+
+/**
+ * Videos over the duration cap are still accepted — the server keeps the first N
+ * seconds — but the guest should know before it uploads. Unknown durations pass.
+ */
+async function longVideoNotices(files: File[], maxSec: number): Promise<string[]> {
+  const videos = files.filter((f) => classifyFile(f) === 'video');
+  const durations = await Promise.all(videos.map((f) => readVideoDurationSec(f)));
+  return videos.flatMap((f, i) => {
+    const d = durations[i];
+    return d !== null && d > maxSec + 0.5
+      ? [`${f.name} is longer than ${maxSec}s — only the first ${maxSec} seconds will be shown.`]
+      : [];
+  });
 }
 
 export default function UploadPage() {
@@ -55,6 +79,7 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [rejections, setRejections] = useState<string[]>([]);
+  const [notices, setNotices] = useState<string[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [namePrompt, setNamePrompt] = useState(false);
 
@@ -78,12 +103,16 @@ export default function UploadPage() {
     if (!fileList || fileList.length === 0 || !event) return;
     setUploadError(null);
 
+    // Validate against the host's current limits (falls back to the defaults if
+    // an older server didn't send them).
+    const limits = event.mediaLimits ?? DEFAULT_MEDIA_LIMITS;
     const picked = Array.from(fileList);
-    const { accepted, rejected } = validateFiles(picked, DEFAULT_MEDIA_LIMITS);
+    const { accepted, rejected } = validateFiles(picked, limits);
 
     // Replace (don't accumulate) so each pick shows only its own rejections,
     // symmetric with how uploadError is cleared above.
-    setRejections(rejected.map((r) => rejectionMessage(r.file.name, r.reason)));
+    setRejections(rejected.map((r) => rejectionMessage(r.file, r.reason, limits)));
+    setNotices([]);
 
     if (accepted.length === 0) return;
 
@@ -94,6 +123,8 @@ export default function UploadPage() {
       return;
     }
     setNamePrompt(false);
+
+    setNotices(await longVideoNotices(accepted, limits.videoMaxDurationSec));
 
     const prepared = await Promise.all(accepted.map((f) => downscaleImage(f)));
 
@@ -214,6 +245,12 @@ export default function UploadPage() {
               {uploadError}
             </p>
           )}
+
+          {notices.map((message, i) => (
+            <p className="rtpa-upload__notice" role="status" key={`${message}-${i}`}>
+              {message}
+            </p>
+          ))}
 
           {rejections.map((message, i) => (
             <p className="rtpa-upload__toast" role="alert" key={`${message}-${i}`}>
