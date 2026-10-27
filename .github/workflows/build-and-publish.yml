@@ -6,7 +6,7 @@ name: build-and-publish
 
 on:
   push:
-    branches: [build/mvp, main]
+    branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
