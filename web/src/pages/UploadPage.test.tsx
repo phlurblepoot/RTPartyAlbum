@@ -290,4 +290,43 @@ describe('UploadPage', () => {
     });
     expect(await screen.findByLabelText(/add photos/i)).toBeInTheDocument();
   });
+
+  it('uploads each file separately so one failure does not sink the others', async () => {
+    vi.mocked(getPublicEvent).mockResolvedValue(baseEvent);
+    const ok = (id: string): Photo => ({
+      id, eventId: 'e1', uploaderName: 'Robin', mediaType: 'image', width: 10, height: 10,
+      durationMs: null, createdAt: new Date().toISOString(), isHidden: false, isPriority: false,
+      displayUrl: `/media/display/${id}.jpg`, thumbUrl: `/media/thumb/${id}.jpg`,
+    });
+    vi.mocked(uploadFiles).mockImplementation(async (_code, args) => {
+      if (args.files[0].name === 'bad.jpg') {
+        throw new ApiError(400, '{"error":"unsupported_type"}');
+      }
+      return [ok(args.files[0].name)];
+    });
+
+    renderPage();
+    await userEvent.type(await screen.findByLabelText(/your name/i), 'Robin');
+    const files = ['a.jpg', 'bad.jpg', 'c.jpg'].map((n) => new File(['x'], n, { type: 'image/jpeg' }));
+    await userEvent.upload(screen.getByLabelText(/add photos/i), files);
+
+    await waitFor(() => expect(uploadFiles).toHaveBeenCalledTimes(3));
+    for (const call of vi.mocked(uploadFiles).mock.calls) expect(call[1].files).toHaveLength(1);
+    expect(await screen.findByText(/bad\.jpg: That file type isn.t supported/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId('contribution-strip').querySelectorAll('img')).toHaveLength(2),
+    );
+  });
+
+  it('stops sending the rest once uploads close mid-batch', async () => {
+    vi.mocked(getPublicEvent).mockResolvedValue(baseEvent);
+    vi.mocked(uploadFiles).mockRejectedValue(new ApiError(403, '{"error":"uploads_closed"}'));
+    renderPage();
+    await userEvent.type(await screen.findByLabelText(/your name/i), 'Robin');
+    const files = ['a.jpg', 'b.jpg', 'c.jpg'].map((n) => new File(['x'], n, { type: 'image/jpeg' }));
+    await userEvent.upload(screen.getByLabelText(/add photos/i), files);
+
+    expect(await screen.findByText(/2 more not sent/)).toBeInTheDocument();
+    expect(uploadFiles).toHaveBeenCalledTimes(1);
+  });
 });

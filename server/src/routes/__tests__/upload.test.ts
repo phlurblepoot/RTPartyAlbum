@@ -390,4 +390,46 @@ describe('POST /api/events/by-code/:code/upload', () => {
     expect(r2.status).toBe(201);
     expect(r3.status).toBe(429);
   });
+
+  describe('temp files', () => {
+    const incomingOf = (uploadsDir: string) => path.join(uploadsDir, '.incoming');
+    // The cleanup runs on response close; give it a moment to settle.
+    const settled = () => new Promise((r) => setTimeout(r, 50));
+
+    it('streams to disk and leaves nothing in .incoming after a successful upload', async () => {
+      const { dataDir, uploadsDir } = await dirsForTest();
+      const { app, seedEvent } = await makeApp({ dataDir, uploadsDir });
+      seedEvent({ code: 'tmpok' });
+      const jpeg = await makeJpegBuffer(320, 240);
+      const res = await request(app)
+        .post('/api/events/by-code/tmpok/upload')
+        .field('uploaderName', 'Bob')
+        .field('deviceId', 'dev-1')
+        .attach('files', jpeg, 'one.jpg');
+      expect(res.status).toBe(201);
+      await settled();
+      expect(await fs.readdir(incomingOf(uploadsDir))).toEqual([]);
+    });
+
+    it('leaves nothing behind when a file fails validation', async () => {
+      const { dataDir, uploadsDir } = await dirsForTest();
+      const { app, seedEvent } = await makeApp({ dataDir, uploadsDir });
+      const ev = seedEvent({ code: 'tmpbad' });
+      const jpeg = await makeJpegBuffer(320, 240);
+      const res = await request(app)
+        .post('/api/events/by-code/tmpbad/upload')
+        .field('uploaderName', 'Bob')
+        .field('deviceId', 'dev-1')
+        .attach('files', jpeg, 'good.jpg')
+        .attach('files', Buffer.from('not really an image at all'), {
+          filename: 'bad.jpg',
+          contentType: 'image/jpeg',
+        });
+      expect(res.status).toBe(400);
+      await settled();
+      expect(await fs.readdir(incomingOf(uploadsDir))).toEqual([]);
+      const eventDir = await fs.readdir(path.join(uploadsDir, ev.id)).catch(() => []);
+      expect(eventDir).toEqual([]);
+    });
+  });
 });

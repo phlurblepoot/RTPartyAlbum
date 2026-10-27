@@ -12,7 +12,7 @@ import type { PhotoRepo } from '../db/repositories/photoRepo.js';
 import type { SettingsRepo } from '../db/repositories/settingsRepo.js';
 import type { RealtimeEmitters } from '../realtime/realtime.js';
 import type { Config } from '../config.js';
-import { makeUploadMiddleware } from '../middleware/upload.js';
+import { makeUploadMiddleware, INCOMING_DIRNAME } from '../middleware/upload.js';
 import { validateUpload, UploadValidationError } from '../services/uploadValidation.js';
 import { processImage } from '../services/imageService.js';
 import { processVideo } from '../services/videoService.js';
@@ -25,6 +25,29 @@ export interface PublicEventsOptions {
 /** Resolve current media limits from settings, falling back to defaults. */
 function getMediaLimits(settingsRepo: SettingsRepo): MediaLimits {
   return settingsRepo.getJson<MediaLimits>(SETTINGS_KEYS.mediaLimits) ?? DEFAULT_MEDIA_LIMITS;
+}
+
+/** Read the first bytes of a file — enough for magic-byte type detection. */
+async function readHead(filePath: string, bytes = 64): Promise<Buffer> {
+  const handle = await fs.open(filePath, 'r');
+  try {
+    const buf = Buffer.alloc(bytes);
+    const { bytesRead } = await handle.read(buf, 0, bytes, 0);
+    return buf.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
+/** Move a file into place; falls back to copy+delete across filesystems. */
+async function moveFile(from: string, to: string): Promise<void> {
+  try {
+    await fs.rename(from, to);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err;
+    await fs.copyFile(from, to);
+    await fs.rm(from, { force: true });
+  }
 }
 
 /** Strip admin-only device fields from a PhotoAdmin row to produce a public Photo. */
@@ -125,20 +148,23 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
 
   // Coarse per-IP pre-limiter. Runs BEFORE multer so a flood is bounded before any
   // body is buffered. Keyed on req.ip ONLY (deviceId isn't parsed yet at this point).
-  // Ceiling is slightly higher than the per-device limiter so legitimate multi-device
-  // traffic from one NAT/IP isn't unduly blocked while still capping abuse.
+  // Ceiling is well above the per-device limiter so legitimate multi-device traffic
+  // from one NAT/IP isn't unduly blocked while still capping abuse.
   const ipPreLimiter = rateLimit({
     windowMs: 60_000,
-    limit: opts.uploadRateMax ? opts.uploadRateMax * 4 : 240,
+    // Guests on venue Wi-Fi often share ONE public IP, and the web client sends one
+    // request per file, so this must allow a whole room's burst (e.g. right after a
+    // toast). The per-device limiter below still caps any single phone at 60/min.
+    limit: opts.uploadRateMax ? opts.uploadRateMax * 4 : 600,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'too_many_uploads' },
     keyGenerator: (req) => req.ip ?? 'noip',
   });
 
-  // Cheap rejection gate. Runs FIRST — BEFORE multer buffers the body — so an unknown
-  // or upload-disabled/ended event is rejected without paying the memory cost of
-  // buffering up to ~1.2GB (20 files × 60MB). On success it stashes the resolved event
+  // Cheap rejection gate. Runs FIRST — BEFORE multer receives the body — so an unknown
+  // or upload-disabled/ended event is rejected without streaming up to ~1.2GB
+  // (20 files × 60MB) to disk first. On success it stashes the resolved event
   // on res.locals so the handler can reuse it without a second getByCode.
   const preUploadGate: RequestHandler = (req, res, next) => {
     const eventRepo = req.app.get('eventRepo') as EventRepo;
@@ -156,23 +182,35 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
     next();
   };
 
-  // Multipart parser. The coarse byte cap = max(photo, video) bytes from CURRENT
-  // settings; finer per-type caps are enforced afterward by validateUpload against the
-  // true received byte count. Build the multer middleware PER REQUEST (cheap, pure
-  // config, no I/O) so a runtime media_limits change takes effect immediately — a cached
-  // middleware would keep a stale cap and let oversized files buffer fully into memory.
+  // Multipart parser. Files stream to UPLOADS_DIR/.incoming (same volume as the
+  // originals, so they can be renamed into place). The coarse byte cap = max(photo,
+  // video) bytes from CURRENT settings; finer per-type caps are enforced afterward by
+  // validateUpload against the true received byte count. Build the multer middleware
+  // PER REQUEST (cheap config) so a runtime media_limits change takes effect immediately.
   const dynamicUpload: RequestHandler = (req, res, next) => {
     const settingsRepo = req.app.get('settingsRepo') as SettingsRepo;
+    const config = req.app.get('config') as Config;
     const limits = getMediaLimits(settingsRepo);
     const perFileMax = Math.max(limits.photoMaxBytes, limits.videoMaxBytes);
-    makeUploadMiddleware(perFileMax)(req, res, next);
+    makeUploadMiddleware(perFileMax, path.join(config.uploadsDir, INCOMING_DIRNAME))(req, res, next);
+  };
+
+  // Whatever happens below, never leave received temp files behind (files that were
+  // moved into place are already gone; rm is a no-op for them).
+  const cleanupIncoming: RequestHandler = (req, res, next) => {
+    res.on('close', () => {
+      const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+      for (const f of files) void fs.rm(f.path, { force: true }).catch(() => undefined);
+    });
+    next();
   };
 
   router.post(
     '/by-code/:code/upload',
     preUploadGate, // 404/403 BEFORE buffering — rejects bad/closed targets cheaply
     ipPreLimiter, // coarse per-IP flood bound, also before buffering
-    dynamicUpload, // now buffers only for a valid, open event under the IP ceiling
+    dynamicUpload, // now receives files only for a valid, open event under the IP ceiling
+    cleanupIncoming, // temp files are removed when the response finishes
     uploadLimiter, // fine-grained deviceId:ip limiter (needs req.body.deviceId from multer)
     async (req, res, next) => {
       const photoRepo = req.app.get('photoRepo') as PhotoRepo;
@@ -228,7 +266,7 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
           // A bad/oversize/wrong-type file rejects the WHOLE request (UploadValidationError
           // → 400 below); we do not silently skip so the uploader gets clear feedback.
           const v = validateUpload({
-            buffer: file.buffer,
+            buffer: await readHead(file.path),
             mimetype: file.mimetype,
             sizeBytes: file.size,
             limits,
@@ -236,13 +274,14 @@ export function makePublicEventsRouter(opts: PublicEventsOptions = {}): Router {
 
           const photoId = nanoid();
           const originalPath = path.join(eventDir, `${photoId}${v.ext}`);
-          // Write the original first (images and videos): videoService needs a file PATH,
-          // and keeping the original on disk is the storage contract.
-          await fs.writeFile(originalPath, file.buffer);
+          // Move the received file into place as the original (videoService needs a
+          // file PATH, and keeping the original on disk is the storage contract).
+          await moveFile(file.path, originalPath);
           pendingOriginal = originalPath;
 
           if (v.mediaType === 'image') {
-            const out = await processImage(file.buffer, photoId, config.dataDir);
+            // Only this one image is read into memory, not the whole batch.
+            const out = await processImage(await fs.readFile(originalPath), photoId, config.dataDir);
             const row = photoRepo.create({
               eventId: event.id,
               uploaderName,

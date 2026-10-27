@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from './config.js';
 import { openDb, type Db } from './db/connection.js';
@@ -9,11 +9,16 @@ import { makeSettingsRepo } from './db/repositories/settingsRepo.js';
 import { makeThemeRepo } from './db/repositories/themeRepo.js';
 import { buildApp } from './app.js';
 import { initRealtime } from './realtime/realtime.js';
+import { INCOMING_DIRNAME } from './middleware/upload.js';
 
 function ensureDirs(dataDir: string, uploadsDir: string): void {
   mkdirSync(join(dataDir, 'media', 'display'), { recursive: true });
   mkdirSync(join(dataDir, 'media', 'thumb'), { recursive: true });
   mkdirSync(uploadsDir, { recursive: true });
+  // Partial uploads left behind by a crash or restart are never resumed; clear them.
+  const incoming = join(uploadsDir, INCOMING_DIRNAME);
+  rmSync(incoming, { recursive: true, force: true });
+  mkdirSync(incoming, { recursive: true });
 }
 
 function main(): void {

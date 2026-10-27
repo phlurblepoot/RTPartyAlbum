@@ -81,7 +81,8 @@ export default function UploadPage() {
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [rejections, setRejections] = useState<string[]>([]);
   const [notices, setNotices] = useState<string[]>([]);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const [uploadStep, setUploadStep] = useState<{ index: number; total: number } | null>(null);
   const [namePrompt, setNamePrompt] = useState(false);
 
   const eventQuery = useQuery({
@@ -124,7 +125,7 @@ export default function UploadPage() {
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0 || !event) return;
-    setUploadError(null);
+    setUploadErrors([]);
 
     // Validate against the host's current limits (falls back to the defaults if
     // an older server didn't send them).
@@ -151,24 +152,46 @@ export default function UploadPage() {
 
     const prepared = await Promise.all(accepted.map((f) => downscaleImage(f)));
 
+    // One request per file: a single bad or oversized file no longer sinks the
+    // whole pick, each success shows up as soon as it lands, and a flaky party
+    // connection only has to retry one file's worth of bytes.
     setUploading(true);
     setProgress(0);
+    const total = prepared.length;
+    const failures: string[] = [];
     try {
-      const photos = await uploadFiles(code, {
-        uploaderName: trimmedName,
-        deviceId: getDeviceId(),
-        files: prepared,
-        onProgress: (fraction) => setProgress(fraction),
-      });
-      const next: Contribution[] = photos.map((p: Photo) => ({
-        id: p.id,
-        thumbUrl: p.thumbUrl,
-      }));
-      setContributions((prev) => [...next, ...prev]);
-    } catch (err) {
-      setUploadError(uploadErrorMessage(err));
+      for (let i = 0; i < total; i += 1) {
+        const file = prepared[i];
+        setUploadStep({ index: i, total });
+        try {
+          const photos = await uploadFiles(code, {
+            uploaderName: trimmedName,
+            deviceId: getDeviceId(),
+            files: [file],
+            onProgress: (fraction) => setProgress((i + fraction) / total),
+          });
+          const next: Contribution[] = photos.map((p: Photo) => ({
+            id: p.id,
+            thumbUrl: p.thumbUrl,
+          }));
+          setContributions((prev) => [...next, ...prev]);
+        } catch (err) {
+          const message = uploadErrorMessage(err);
+          failures.push(total > 1 ? `${file.name}: ${message}` : message);
+          // Closed or rate-limited: the remaining files would fail the same way.
+          const errCode = err instanceof ApiError ? err.code : null;
+          const status = err instanceof ApiError ? err.status : 0;
+          if (errCode === 'uploads_closed' || status === 403 || status === 429) {
+            const skipped = total - i - 1;
+            if (skipped > 0) failures.push(`${skipped} more not sent.`);
+            break;
+          }
+        }
+      }
     } finally {
+      setUploadErrors(failures);
       setUploading(false);
+      setUploadStep(null);
     }
   }
 
@@ -246,6 +269,12 @@ export default function UploadPage() {
             />
           </label>
 
+          {uploading && uploadStep && uploadStep.total > 1 && (
+            <p className="rtpa-upload__step" aria-live="polite" data-testid="upload-step">
+              Uploading {uploadStep.index + 1} of {uploadStep.total}…
+            </p>
+          )}
+
           {uploading && (
             <div
               className="rtpa-upload__progress"
@@ -263,11 +292,11 @@ export default function UploadPage() {
             </div>
           )}
 
-          {uploadError && (
-            <p className="rtpa-upload__toast" role="alert">
-              {uploadError}
+          {uploadErrors.map((message, i) => (
+            <p className="rtpa-upload__toast" role="alert" key={`${message}-${i}`}>
+              {message}
             </p>
-          )}
+          ))}
 
           {notices.map((message, i) => (
             <p className="rtpa-upload__notice" role="status" key={`${message}-${i}`}>
