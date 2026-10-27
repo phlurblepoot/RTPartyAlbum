@@ -330,6 +330,27 @@ export function updatePhoto(state: EngineState, photo: Photo): EngineState {
   return { ...state, album, queue, onCanvas };
 }
 
+/**
+ * Reconcile the engine with a fresh, authoritative public photo list (e.g. after a
+ * socket reconnect, when broadcasts may have been missed). Photos no longer listed
+ * (hidden/deleted while offline) are removed, known photos are refreshed in place,
+ * and unseen photos are enqueued as new uploads so they get prompt screen time.
+ * `photos` is newest-first (the API order); we enqueue oldest-first so the newest
+ * ends up at the front of the queue.
+ */
+export function syncAlbum(state: EngineState, photos: Photo[]): EngineState {
+  const fresh = new Set(photos.map((p) => p.id));
+  let next = state;
+  for (const p of state.album) {
+    if (!fresh.has(p.id)) next = removePhoto(next, p.id);
+  }
+  const known = new Set(next.album.map((p) => p.id));
+  for (const p of [...photos].reverse()) {
+    next = known.has(p.id) ? updatePhoto(next, p) : enqueueUpload(next, p);
+  }
+  return next;
+}
+
 export function removePhoto(state: EngineState, photoId: string): EngineState {
   const onCanvas = state.onCanvas.filter((t) => t.photo.id !== photoId);
   const queue = state.queue.filter((p) => p.id !== photoId);

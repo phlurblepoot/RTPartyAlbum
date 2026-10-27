@@ -8,7 +8,10 @@ import { DEFAULT_MOTION_CONFIG } from '@rtpa/shared';
 import type { EventDetail, PhotoAdmin, Photo } from '@rtpa/shared';
 
 let fakeSocket: FakeSocket;
-vi.mock('../../lib/socket', () => ({ getSocket: () => fakeSocket }));
+vi.mock('../../lib/socket', async (importActual) => ({
+  ...(await importActual<typeof import('../../lib/socket')>()),
+  getSocket: () => fakeSocket,
+}));
 vi.mock('../api', () => ({
   adminApi: { listPhotos: vi.fn(), hidePhoto: vi.fn(), deletePhoto: vi.fn() },
 }));

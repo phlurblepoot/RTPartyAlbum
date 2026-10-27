@@ -17,8 +17,19 @@ const fakeSocket = {
   },
   off: vi.fn(),
   disconnect: vi.fn(),
+  // Socket.IO Manager stand-in so tests can simulate a reconnect.
+  managerHandlers: {} as Record<string, () => void>,
+  io: {
+    on(ev: string, cb: () => void) {
+      fakeSocket.managerHandlers[ev] = cb;
+    },
+    off(ev: string) {
+      delete fakeSocket.managerHandlers[ev];
+    },
+  },
 };
-vi.mock('../../lib/socket', () => ({
+vi.mock('../../lib/socket', async (importActual) => ({
+  ...(await importActual<typeof import('../../lib/socket')>()),
   getSocket: () => fakeSocket,
   connectSocket: () => fakeSocket,
 }));
@@ -74,6 +85,7 @@ beforeEach(() => {
   // existing fake-timer convention (see admin/__tests__/DisplayTab.test.tsx).
   vi.useFakeTimers({ shouldAdvanceTime: true });
   fakeSocket.handlers = {};
+  fakeSocket.managerHandlers = {};
   fakeSocket.emit.mockClear();
   albumPhotos = Array.from({ length: 6 }, (_, i) => makePhoto('a' + i));
   // default: motion not reduced
@@ -199,6 +211,27 @@ describe('DisplayPage', () => {
     expect(backdrop().style.background).not.toContain('linear-gradient');
     expect(container.querySelector('.ambient-bokeh')).not.toBeNull();
     expect(container.querySelector('.ambient-glow')).toBeNull();
+  });
+
+  it('re-joins the room after a reconnect and reconciles missed changes', async () => {
+    const { container } = renderPage();
+    await waitFor(() => expect(container.querySelectorAll('[data-tile-id]').length).toBe(3));
+    const gone = (container.querySelector('[data-tile-id]') as HTMLElement).getAttribute('data-tile-id')!;
+
+    // While "offline": one on-canvas photo was deleted and a new one uploaded.
+    albumPhotos = [makePhoto('MISSED'), ...albumPhotos.filter((p) => p.id !== gone)];
+    await act(async () => {
+      fakeSocket.managerHandlers.reconnect();
+    });
+
+    expect(fakeSocket.emit).toHaveBeenCalledTimes(2);
+    expect(fakeSocket.emit).toHaveBeenLastCalledWith('join', 'ABC');
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    await waitFor(() => expect(container.querySelector('[data-tile-id="MISSED"]')).not.toBeNull());
+    expect(container.querySelector(`[data-tile-id="${gone}"]`)).toBeNull();
+    expect(container.querySelectorAll('[data-tile-id]').length).toBeLessThanOrEqual(3);
   });
 
   it('seeds the engine exactly once with default props (no re-seed loop)', async () => {

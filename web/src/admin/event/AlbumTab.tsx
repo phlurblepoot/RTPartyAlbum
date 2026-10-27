@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '../api';
-import { getSocket } from '../../lib/socket';
+import { getSocket, joinEventRoom } from '../../lib/socket';
 import type { EventDetail, PhotoAdmin, Photo } from '@rtpa/shared';
 
 function mergePhotoFromSocket(prev: PhotoAdmin[], p: Photo): PhotoAdmin[] {
@@ -36,7 +36,16 @@ export function AlbumTab({ event }: { event: EventDetail }) {
 
   useEffect(() => {
     const socket = getSocket();
-    socket.emit('join', event.code);
+    let disposed = false;
+    // On reconnect, reload the list so uploads made while we were offline appear.
+    const leaveRoom = joinEventRoom(socket, event.code, () => {
+      void adminApi
+        .listPhotos(event.id)
+        .then((fresh) => {
+          if (!disposed) setPhotos(fresh);
+        })
+        .catch(() => undefined);
+    });
     const onAdded = (p: Photo) => setPhotos((prev) => mergePhotoFromSocket(prev, p));
     const onHidden = (payload: { id: string }) =>
       setPhotos((prev) => prev.map((x) => (x.id === payload.id ? { ...x, isHidden: true } : x)));
@@ -49,12 +58,14 @@ export function AlbumTab({ event }: { event: EventDetail }) {
     socket.on('photo:deleted', onDeleted);
     socket.on('photo:updated', onUpdated);
     return () => {
+      disposed = true;
+      leaveRoom();
       socket.off('photo:added', onAdded);
       socket.off('photo:hidden', onHidden);
       socket.off('photo:deleted', onDeleted);
       socket.off('photo:updated', onUpdated);
     };
-  }, [event.code]);
+  }, [event.code, event.id]);
 
   const visible = useMemo(
     () => photos.filter((p) => (showHidden ? true : !p.isHidden)),

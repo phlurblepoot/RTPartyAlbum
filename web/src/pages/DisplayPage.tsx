@@ -3,11 +3,12 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { MotionConfig, Photo, Theme } from '@rtpa/shared';
 import { getPublicEvent, getPublicPhotos } from '../api/client';
-import { connectSocket } from '../lib/socket';
+import { connectSocket, joinEventRoom } from '../lib/socket';
 import {
   createEngineState,
   enqueueUpload,
   removePhoto,
+  syncAlbum,
   updatePhoto,
   tick,
   type EngineState,
@@ -99,7 +100,26 @@ export function DisplayPage({
   useEffect(() => {
     if (!code) return;
     const socket = connectSocket();
-    socket.emit('join', code);
+
+    // After a reconnect we may have missed broadcasts (uploads, hides, deletes,
+    // settings or theme changes). Refetch the authoritative state and reconcile it
+    // into the running engine in place, rather than re-seeding (which would wipe
+    // the canvas and replay every enter animation).
+    let disposed = false;
+    const resync = () => {
+      void Promise.all([getPublicEvent(code), getPublicPhotos(code)])
+        .then(([event, photos]) => {
+          if (disposed) return;
+          setTheme(event.theme);
+          setState((s) =>
+            s ? { ...syncAlbum(s, photos), config: event.motionConfig } : s,
+          );
+        })
+        .catch(() => {
+          // Transient failure: keep showing what we have; the next reconnect retries.
+        });
+    };
+    const leaveRoom = joinEventRoom(socket, code, resync);
 
     const onAdded = (photo: Photo) => setState((s) => (s ? enqueueUpload(s, photo) : s));
     const onHidden = (p: { id: string }) => setState((s) => (s ? removePhoto(s, p.id) : s));
@@ -117,6 +137,8 @@ export function DisplayPage({
     socket.on('theme:updated', onTheme);
 
     return () => {
+      disposed = true;
+      leaveRoom();
       socket.off('photo:added', onAdded);
       socket.off('photo:hidden', onHidden);
       socket.off('photo:deleted', onDeleted);
