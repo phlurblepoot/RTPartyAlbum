@@ -21,8 +21,17 @@ export interface RealtimeEmitters {
 
 const room = (code: string) => `event:${code}`;
 
+export interface Realtime extends RealtimeEmitters {
+  /**
+   * Drop every live connection so the HTTP server can finish closing on shutdown.
+   * Connections are closed at the transport level (not a server "disconnect"), so
+   * displays treat it like a network drop and auto-reconnect once the server is back.
+   */
+  closeConnections(): void;
+}
+
 /** Attach a typed Socket.IO server to the HTTP server and return emit helpers. */
-export function initRealtime(httpServer: HttpServer): RealtimeEmitters {
+export function initRealtime(httpServer: HttpServer): Realtime {
   // SPA and websocket are served from the SAME origin (reverse proxy in prod,
   // Vite's /socket.io proxy in dev), so Socket.IO must NOT accept arbitrary
   // cross-origin connections. Disabling CORS handling leaves same-origin
@@ -38,6 +47,9 @@ export function initRealtime(httpServer: HttpServer): RealtimeEmitters {
   });
 
   return {
+    closeConnections() {
+      io.engine.close();
+    },
     emitPhotoAdded(code, photo) {
       io.to(room(code)).emit('photo:added', photo);
     },

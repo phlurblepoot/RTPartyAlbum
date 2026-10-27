@@ -8,7 +8,7 @@ import { seed } from './db/seed.js';
 import { makeSettingsRepo } from './db/repositories/settingsRepo.js';
 import { makeThemeRepo } from './db/repositories/themeRepo.js';
 import { buildApp } from './app.js';
-import { initRealtime } from './realtime/realtime.js';
+import { initRealtime, type Realtime } from './realtime/realtime.js';
 import { INCOMING_DIRNAME } from './middleware/upload.js';
 
 function ensureDirs(dataDir: string, uploadsDir: string): void {
@@ -50,7 +50,7 @@ function main(): void {
     console.log(`[rtpa] server listening on :${config.port} (env=${config.nodeEnv})`);
   });
 
-  installShutdownHandlers(httpServer, db);
+  installShutdownHandlers(httpServer, db, realtime);
 }
 
 /**
@@ -66,7 +66,7 @@ function main(): void {
  * keep-alive socket). The timer is `.unref()`'d so it never by itself keeps the
  * process alive once the clean path has completed.
  */
-function installShutdownHandlers(httpServer: Server, db: Db): void {
+function installShutdownHandlers(httpServer: Server, db: Db, realtime: Realtime): void {
   let shuttingDown = false;
 
   const shutdown = (signal: string): void => {
@@ -81,6 +81,12 @@ function installShutdownHandlers(httpServer: Server, db: Db): void {
       process.exit(1);
     }, 10_000);
     forced.unref();
+
+    // Long-lived WebSocket connections (every open display/admin/upload page) never
+    // "drain", so without this the close below always hit the forced-exit timer.
+    // Drop them now; in-flight HTTP requests (uploads, exports) still finish.
+    realtime.closeConnections();
+    httpServer.closeIdleConnections();
 
     httpServer.close((err) => {
       if (err) {
